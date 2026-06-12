@@ -255,6 +255,79 @@ const defaultMessages: Message[] = [
   { id: 'm9', conversationId: 'conv3', senderId: 'hr3', senderName: '培训部张老师', senderRole: 'hr', content: '培训时间定在6月21日上午9点', createdAt: '2026-06-10 09:15', isRead: false }
 ];
 
+const defaultContracts: Contract[] = [
+  {
+    id: 'CT-2026-001',
+    title: '劳动合同（固定期限）',
+    content: `劳动合同
+甲方：XX科技有限公司
+法定代表人：XXX
+地址：北京市朝阳区建国路88号
+
+乙方：[员工姓名]
+身份证号：[身份证号]
+
+根据《中华人民共和国劳动法》、《中华人民共和国劳动合同法》及相关法律法规，甲乙双方本着平等自愿、协商一致的原则，签订本合同，共同遵守本合同所列条款。
+
+一、合同类型和期限
+第一条 本合同为固定期限劳动合同。合同期限为叁年，自[入职日期]起至[入职日期+3年]止。其中试用期为陆个月，自[入职日期]起至[入职日期+6个月]止。
+
+二、工作内容和工作地点
+第二条 乙方同意根据甲方工作需要，担任[岗位名称]岗位的工作。
+第三条 乙方的工作地点为甲方住所地或甲方业务所涉及的其他地点。
+
+三、工作时间和休息休假
+第四条 甲方实行标准工时制度，乙方每日工作不超过8小时，每周工作不超过40小时。
+第五条 乙方依法享有法定节假日、带薪年休假等休假权利。
+
+四、劳动报酬
+第六条 甲方每月15日以货币形式支付乙方上月工资。
+第七条 乙方试用期工资为人民币12000元/月；试用期满后工资为人民币15000元/月。
+第八条 甲方根据公司经营状况和乙方工作表现，可适时调整乙方的工资待遇。
+
+五、社会保险和福利待遇
+第九条 甲乙双方按照国家和北京市的规定参加社会保险，依法缴纳各项社会保险费。
+第十条 乙方享受甲方规定的各项福利待遇。
+
+六、劳动保护和工作条件
+第十一条 甲方为乙方提供符合国家规定的劳动安全卫生条件和必要的劳动保护用品。
+第十二条 甲方建立健全工作规范和劳动安全卫生制度及其标准。
+
+七、劳动合同的解除和终止
+第十三条 甲乙双方协商一致，可以解除劳动合同。
+第十四条 乙方提前三十日以书面形式通知甲方，可以解除劳动合同；在试用期内提前三日通知甲方，可以解除劳动合同。
+第十五条 本合同期满或者双方约定的终止条件出现，本合同即行终止。
+
+八、保密和竞业限制
+第十六条 乙方对在工作过程中知悉的甲方商业秘密、技术秘密和其他未公开的经营信息负有保密义务。
+第十七条 未经甲方书面同意，乙方在合同期间及离职后两年内，不得在与甲方有竞争关系的单位任职或自营与甲方有竞争关系的业务。
+
+九、其他事项
+第十八条 本合同未尽事宜，按照国家及北京市有关规定执行。
+第十九条 本合同一式两份，甲乙双方各执一份，具有同等法律效力。
+第二十条 本合同自双方签字或盖章之日起生效。
+
+甲方（盖章）：XX科技有限公司
+法定代表人或授权代表（签字）：XXX
+日期：[签订日期]
+
+乙方（签字）：
+日期：[签订日期]`,
+    version: 'v1.0',
+    publishedAt: '2026-06-01',
+    signed: false
+  }
+];
+
+const initEmployeeContracts = (): Record<string, { contractId: string; signed: boolean; signedAt?: string; signatureUrl?: string; sentAt?: string }> => {
+  return {
+    emp1: { contractId: 'CT-2026-001', signed: false, sentAt: '2026-06-10 10:00' },
+    emp2: { contractId: 'CT-2026-001', signed: false, sentAt: '2026-06-10 11:00' },
+    emp3: { contractId: 'CT-2026-001', signed: true, signedAt: '2026-06-11 15:30', sentAt: '2026-06-09 09:00' },
+    emp4: { contractId: 'CT-2026-001', signed: false }
+  };
+};
+
 interface OnboardingState {
   role: UserRole;
   currentEmployeeId: string;
@@ -266,6 +339,8 @@ interface OnboardingState {
   progressStepsMap: Record<string, ProgressStep[]>;
   hrTasks: HrTask[];
   employees: EmployeeProfile[];
+  contracts: Contract[];
+  employeeContracts: Record<string, { contractId: string; signed: boolean; signedAt?: string; signatureUrl?: string; sentAt?: string }>;
   conversations: Conversation[];
   messages: Message[];
 
@@ -297,6 +372,10 @@ interface OnboardingState {
   sendMessage: (conversationId: string, content: string, senderRole: UserRole) => void;
   markConversationRead: (conversationId: string) => void;
 
+  getEmployeeContract: (empId: string) => { contract: Contract | undefined; signed: boolean; signedAt?: string; sentAt?: string };
+  sendContractToEmployee: (empId: string, contractId: string) => void;
+  signContract: (empId: string, contractId: string) => void;
+
   getChecklistGroups: (empId: string) => ChecklistGroup[];
   getChecklistStats: (empId: string) => { total: number; completed: number; pending: number; processing: number; rejected: number; percent: number };
 }
@@ -312,6 +391,8 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
   progressStepsMap: initProgressSteps(),
   hrTasks: initHrTasks(),
   employees: defaultEmployees,
+  contracts: defaultContracts,
+  employeeContracts: initEmployeeContracts(),
   conversations: defaultConversations,
   messages: defaultMessages,
 
@@ -410,11 +491,20 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
       };
     });
 
+    const total = newItems.length;
+    const completed = newItems.filter((i) => i.status === 'completed').length;
+    const overallProgress = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    const updatedEmployees = state.employees.map((e) =>
+      e.id === employeeId ? { ...e, overallProgress } : e
+    );
+
     return {
       checklistItemsMap: {
         ...state.checklistItemsMap,
         [employeeId]: newItems
-      }
+      },
+      employees: updatedEmployees
     };
   }),
 
@@ -656,6 +746,64 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
       m.conversationId === conversationId ? { ...m, isRead: true } : m
     )
   })),
+
+  getEmployeeContract: (empId) => {
+    const state = get();
+    const empContract = state.employeeContracts[empId];
+    const contract = state.contracts.find((c) => c.id === empContract?.contractId);
+    return {
+      contract,
+      signed: empContract?.signed || false,
+      signedAt: empContract?.signedAt,
+      sentAt: empContract?.sentAt
+    };
+  },
+
+  sendContractToEmployee: (employeeId, contractId) => set((state) => {
+    const existing = state.employeeContracts[employeeId] || {};
+    const sentAt = new Date().toLocaleString('zh-CN').replace(/\//g, '-');
+    return {
+      employeeContracts: {
+        ...state.employeeContracts,
+        [employeeId]: {
+          ...existing,
+          contractId,
+          sentAt
+        }
+      },
+      progressStepsMap: {
+        ...state.progressStepsMap,
+        [employeeId]: (state.progressStepsMap[employeeId] || []).map((s) =>
+          s.id === 'ps4' ? { ...s, status: 'processing' as TaskStatus, assignee: '王HR' } : s
+        )
+      }
+    };
+  }),
+
+  signContract: (employeeId, contractId) => set((state) => {
+    const signedAt = new Date().toLocaleString('zh-CN').replace(/\//g, '-');
+    const existing = state.employeeContracts[employeeId] || { contractId };
+    return {
+      employeeContracts: {
+        ...state.employeeContracts,
+        [employeeId]: {
+          ...existing,
+          contractId,
+          signed: true,
+          signedAt
+        }
+      },
+      progressStepsMap: {
+        ...state.progressStepsMap,
+        [employeeId]: (state.progressStepsMap[employeeId] || []).map((s) =>
+          s.id === 'ps4' ? { ...s, status: 'completed' as TaskStatus, actualDate: new Date().toISOString().split('T')[0], assignee: '王HR' } : s
+        )
+      },
+      employees: state.employees.map((e) =>
+        e.id === employeeId ? { ...e, contractStatus: 'completed' as TaskStatus } : e
+      )
+    };
+  }),
 
   getChecklistGroups: (empId) => {
     const state = get();

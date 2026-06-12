@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, ScrollView, Input, Textarea, Button } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import classnames from 'classnames';
@@ -19,13 +19,41 @@ const ConfigPage: React.FC = () => {
   const templates = useOnboardingStore((s) => s.checklistTemplates);
   const employees = useOnboardingStore((s) => s.employees);
   const currentEmployeeId = useOnboardingStore((s) => s.currentEmployeeId);
+  const setCurrentPositionId = useOnboardingStore((s) => s.setCurrentPositionId);
   const addChecklistItem = useOnboardingStore((s) => s.addChecklistItem);
   const updateChecklistItem = useOnboardingStore((s) => s.updateChecklistItem);
   const deleteChecklistItem = useOnboardingStore((s) => s.deleteChecklistItem);
   const applyChecklistToEmployee = useOnboardingStore((s) => s.applyChecklistToEmployee);
 
+  const currentEmployee = useMemo(
+    () => employees.find((e) => e.id === currentEmployeeId),
+    [employees, currentEmployeeId]
+  );
+
   const [selectedPosIdx, setSelectedPosIdx] = useState(0);
+
+  useEffect(() => {
+    if (currentEmployee) {
+      const posIdx = positions.findIndex((p) => p.id === currentEmployee.positionId);
+      if (posIdx >= 0) {
+        setSelectedPosIdx(posIdx);
+        setCurrentPositionId(positions[posIdx].id);
+      }
+    }
+  }, [currentEmployeeId, currentEmployee, positions, setCurrentPositionId]);
+
   const selectedPos = positions[selectedPosIdx];
+
+  const positionEmployees = useMemo(() => {
+    return employees.filter((e) => e.positionId === selectedPos?.id);
+  }, [employees, selectedPos]);
+
+  const defaultTargetEmployee = useMemo(() => {
+    if (currentEmployee && currentEmployee.positionId === selectedPos?.id) {
+      return currentEmployee;
+    }
+    return positionEmployees.find((e) => e.arrivalStatus !== 'completed') || positionEmployees[0];
+  }, [currentEmployee, positionEmployees, selectedPos]);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -55,9 +83,10 @@ const ConfigPage: React.FC = () => {
 
   const handleSelectPosition = () => {
     Taro.showActionSheet({
-      itemList: positions.map(p => `${p.name}（${p.department}）`),
+      itemList: positions.map((p) => `${p.name}（${p.department}）`),
       success: (res) => {
         setSelectedPosIdx(res.tapIndex);
+        setCurrentPositionId(positions[res.tapIndex].id);
       }
     });
   };
@@ -112,18 +141,42 @@ const ConfigPage: React.FC = () => {
   };
 
   const handleApplyToEmployee = () => {
-    const emp = employees.find(e => e.id === currentEmployeeId);
-    Taro.showModal({
-      title: '应用到员工',
-      content: `将「${selectedPos.name}」的最新清单模板应用给员工「${emp?.name || '当前选中的员工'}」？\n已完成的项会保留进度。`,
-      success: (res) => {
-        if (res.confirm) {
-          applyChecklistToEmployee(selectedPos.id, currentEmployeeId);
-          Taro.showToast({ title: '已应用，返回清单查看', icon: 'success' });
-          setTimeout(() => Taro.navigateBack(), 800);
+    if (positionEmployees.length === 0) {
+      Taro.showToast({ title: '该岗位暂无员工', icon: 'none' });
+      return;
+    }
+    if (positionEmployees.length === 1) {
+      const emp = positionEmployees[0];
+      Taro.showModal({
+        title: '应用到员工',
+        content: `将「${selectedPos.name}」的最新清单模板应用给员工「${emp.name}」？\n已完成的项会保留进度。`,
+        success: (res) => {
+          if (res.confirm) {
+            applyChecklistToEmployee(selectedPos.id, emp.id);
+            Taro.showToast({ title: '已应用，返回清单查看', icon: 'success' });
+            setTimeout(() => Taro.navigateBack(), 800);
+          }
         }
-      }
-    });
+      });
+    } else {
+      Taro.showActionSheet({
+        itemList: positionEmployees.map((e) => `${e.name}（${e.arrivalStatus === 'completed' ? '已到岗' : `进度${e.overallProgress}%`}）`),
+        success: (res) => {
+          const emp = positionEmployees[res.tapIndex];
+          Taro.showModal({
+            title: '应用到员工',
+            content: `将「${selectedPos.name}」的最新清单模板应用给员工「${emp.name}」？\n已完成的项会保留进度。`,
+            success: (res2) => {
+              if (res2.confirm) {
+                applyChecklistToEmployee(selectedPos.id, emp.id);
+                Taro.showToast({ title: '已应用，返回清单查看', icon: 'success' });
+                setTimeout(() => Taro.navigateBack(), 800);
+              }
+            }
+          });
+        }
+      });
+    }
   };
 
   const handleSelectCategory = () => {
