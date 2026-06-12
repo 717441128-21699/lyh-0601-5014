@@ -16,7 +16,6 @@ const ChecklistPage: React.FC = () => {
   const role = useOnboardingStore((s) => s.role);
   const employees = useOnboardingStore((s) => s.employees);
   const currentEmployeeId = useOnboardingStore((s) => s.currentEmployeeId);
-  const currentPositionId = useOnboardingStore((s) => s.currentPositionId);
   const positions = useOnboardingStore((s) => s.positions);
   const getChecklistGroups = useOnboardingStore((s) => s.getChecklistGroups);
   const getChecklistStats = useOnboardingStore((s) => s.getChecklistStats);
@@ -33,22 +32,22 @@ const ChecklistPage: React.FC = () => {
     { key: 'rejected', label: '已退回' }
   ];
 
-  const empPositionId = useMemo(() => {
-    if (role === 'employee') {
-      const emp = employees.find(e => e.id === 'emp1');
-      return emp?.positionId || currentPositionId;
-    }
-    const emp = employees.find(e => e.id === currentEmployeeId);
-    return emp?.positionId || currentPositionId;
-  }, [role, currentEmployeeId, currentPositionId, employees]);
+  const targetEmployeeId = useMemo(() => {
+    return role === 'employee' ? 'emp1' : currentEmployeeId;
+  }, [role, currentEmployeeId]);
+
+  const targetEmployee = useMemo(
+    () => employees.find((e) => e.id === targetEmployeeId),
+    [employees, targetEmployeeId]
+  );
 
   const stats = useMemo(
-    () => getChecklistStats(empPositionId),
-    [getChecklistStats, empPositionId]
+    () => getChecklistStats(targetEmployeeId),
+    [getChecklistStats, targetEmployeeId]
   );
   const groups = useMemo(
-    () => getChecklistGroups(empPositionId),
-    [getChecklistGroups, empPositionId]
+    () => getChecklistGroups(targetEmployeeId),
+    [getChecklistGroups, targetEmployeeId]
   );
 
   const filteredGroups = useMemo(() => {
@@ -79,14 +78,14 @@ const ChecklistPage: React.FC = () => {
   };
 
   const handleApplyTemplate = () => {
-    const pos = positions.find(p => p.id === empPositionId);
-    const emp = employees.find(e => e.id === (role === 'employee' ? 'emp1' : currentEmployeeId));
+    if (!targetEmployee) return;
+    const pos = positions.find((p) => p.id === targetEmployee.positionId);
     Taro.showModal({
       title: '确认应用模板',
-      content: `将「${pos?.name || '当前岗位'}」的入职清单模板应用给员工「${emp?.name || ''}」？`,
+      content: `将「${pos?.name || '当前岗位'}」的入职清单模板应用给员工「${targetEmployee.name}」？`,
       success: (res) => {
         if (res.confirm) {
-          applyChecklistToEmployee(empPositionId, role === 'employee' ? 'emp1' : currentEmployeeId);
+          applyChecklistToEmployee(targetEmployee.positionId, targetEmployeeId);
           Taro.showToast({ title: '已应用最新清单', icon: 'success' });
         }
       }

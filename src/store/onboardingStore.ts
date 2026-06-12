@@ -14,8 +14,7 @@ import type {
   HrTask,
   EmployeeProfile,
   Conversation,
-  Message,
-  EmergencyContact
+  Message
 } from '@/types/onboarding';
 
 const categoryNames: Record<TaskCategory, string> = {
@@ -111,23 +110,36 @@ const defaultTemplates: PositionChecklistTemplate[] = [
   }
 ];
 
-const createDefaultChecklist = (positionId: string): ChecklistItem[] => {
+const createDefaultChecklistForEmployee = (empId: string, positionId: string): ChecklistItem[] => {
   const tpl = defaultTemplates.find(t => t.positionId === positionId);
   if (!tpl) return [];
-  const statusMap: Record<number, TaskStatus> = {
-    0: 'completed', 1: 'processing', 2: 'pending', 3: 'rejected'
-  };
-  return tpl.items.map((tplItem, idx) => ({
-    id: `ci_${positionId}_${idx}`,
-    title: tplItem.title,
-    description: tplItem.description,
-    category: tplItem.category,
-    status: idx < 2 ? 'completed' : idx < 4 ? 'processing' : idx < 5 ? 'rejected' : 'pending',
-    completedAt: idx < 2 ? '2026-06-10 14:30' : undefined,
-    rejectReason: idx === 4 ? '联系人电话格式不正确，请重新填写' : undefined,
-    assignee: tplItem.category === 'system' ? '王HR' : undefined,
-    positionId
-  }));
+  const completedCount = empId === 'emp3' ? 6 : empId === 'emp2' ? 4 : empId === 'emp1' ? 2 : 1;
+  return tpl.items.map((tplItem, idx) => {
+    let status: TaskStatus = 'pending';
+    let completedAt: string | undefined;
+    let rejectReason: string | undefined;
+    if (idx < completedCount) {
+      status = 'completed';
+      completedAt = '2026-06-10 14:30';
+    } else if (idx === completedCount) {
+      status = 'processing';
+    } else if (idx === completedCount + 1 && empId === 'emp1') {
+      status = 'rejected';
+      rejectReason = '联系人电话格式不正确，请重新填写';
+    }
+    return {
+      id: `ci_${empId}_${idx}`,
+      title: tplItem.title,
+      description: tplItem.description,
+      category: tplItem.category,
+      status,
+      completedAt,
+      rejectReason,
+      assignee: tplItem.category === 'system' ? '王HR' : undefined,
+      positionId,
+      employeeId: empId
+    };
+  });
 };
 
 const createDefaultPersonalInfo = (empId: string): PersonalInfo => {
@@ -176,24 +188,24 @@ const createDefaultProgressSteps = (empId: string): ProgressStep[] => {
 const createDefaultHrTasks = (empId: string, empName: string, position: string): HrTask[] => {
   if (empId === 'emp1') {
     return [
-      { id: `ht_${empId}_1`, title: '审核身份证材料', employeeName: empName, position, taskType: '资料审核', status: 'pending', deadline: '2026-06-13' },
-      { id: `ht_${empId}_2`, title: '退回紧急联系人修改', employeeName: empName, position, taskType: '资料审核', status: 'rejected', deadline: '2026-06-12' }
+      { id: `ht_${empId}_1`, employeeId: empId, title: '审核身份证材料', employeeName: empName, position, taskType: '资料审核', status: 'pending', deadline: '2026-06-13' },
+      { id: `ht_${empId}_2`, employeeId: empId, title: '退回紧急联系人修改', employeeName: empName, position, taskType: '资料审核', status: 'rejected', deadline: '2026-06-12' }
     ];
   }
   if (empId === 'emp2') {
     return [
-      { id: `ht_${empId}_1`, title: '审核学历证书', employeeName: empName, position, taskType: '资料审核', status: 'completed', deadline: '2026-06-10', assignee: '王HR', completedAt: '2026-06-10 14:00', scheduledAt: '2026-06-08 09:00' },
-      { id: `ht_${empId}_2`, title: '合同发送', employeeName: empName, position, taskType: '合同签订', status: 'processing', deadline: '2026-06-14', assignee: '王HR', scheduledAt: '2026-06-11 10:00' }
+      { id: `ht_${empId}_1`, employeeId: empId, title: '审核学历证书', employeeName: empName, position, taskType: '资料审核', status: 'completed', deadline: '2026-06-10', assignee: '王HR', completedAt: '2026-06-10 14:00', scheduledAt: '2026-06-08 09:00' },
+      { id: `ht_${empId}_2`, employeeId: empId, title: '合同发送', employeeName: empName, position, taskType: '合同签订', status: 'processing', deadline: '2026-06-14', assignee: '王HR', scheduledAt: '2026-06-11 10:00' }
     ];
   }
   if (empId === 'emp3') {
     return [
-      { id: `ht_${empId}_1`, title: '预约入职体检', employeeName: empName, position, taskType: '体检安排', status: 'completed', deadline: '2026-06-15', assignee: '李行政', completedAt: '2026-06-10 14:00', scheduledAt: '2026-06-09 09:00' },
-      { id: `ht_${empId}_2`, title: '工位分配', employeeName: empName, position, taskType: '工位安排', status: 'completed', deadline: '2026-06-16', assignee: '李行政', completedAt: '2026-06-11 10:00', scheduledAt: '2026-06-09 09:00' }
+      { id: `ht_${empId}_1`, employeeId: empId, title: '预约入职体检', employeeName: empName, position, taskType: '体检安排', status: 'completed', deadline: '2026-06-15', assignee: '李行政', completedAt: '2026-06-10 14:00', scheduledAt: '2026-06-09 09:00' },
+      { id: `ht_${empId}_2`, employeeId: empId, title: '工位分配', employeeName: empName, position, taskType: '工位安排', status: 'completed', deadline: '2026-06-16', assignee: '李行政', completedAt: '2026-06-11 10:00', scheduledAt: '2026-06-09 09:00' }
     ];
   }
   return [
-    { id: `ht_${empId}_1`, title: '入职材料收集', employeeName: empName, position, taskType: '资料审核', status: 'pending', deadline: '2026-06-15' }
+    { id: `ht_${empId}_1`, employeeId: empId, title: '入职材料收集', employeeName: empName, position, taskType: '资料审核', status: 'pending', deadline: '2026-06-15' }
   ];
 };
 
@@ -217,12 +229,12 @@ const initHrTasks = (): HrTask[] => {
   return all;
 };
 
-const initChecklistItems = (): ChecklistItem[] => {
-  const all: ChecklistItem[] = [];
+const initChecklistItemsMap = (): Record<string, ChecklistItem[]> => {
+  const result: Record<string, ChecklistItem[]> = {};
   defaultEmployees.forEach(emp => {
-    all.push(...createDefaultChecklist(emp.positionId));
+    result[emp.id] = createDefaultChecklistForEmployee(emp.id, emp.positionId);
   });
-  return all;
+  return result;
 };
 
 const defaultConversations: Conversation[] = [
@@ -249,7 +261,7 @@ interface OnboardingState {
   currentPositionId: string;
   positions: Position[];
   checklistTemplates: PositionChecklistTemplate[];
-  checklistItems: ChecklistItem[];
+  checklistItemsMap: Record<string, ChecklistItem[]>;
   personalInfos: Record<string, PersonalInfo>;
   progressStepsMap: Record<string, ProgressStep[]>;
   hrTasks: HrTask[];
@@ -262,9 +274,10 @@ interface OnboardingState {
   setCurrentEmployeeId: (id: string) => void;
   setCurrentPositionId: (id: string) => void;
 
-  getCurrentPersonalInfo: () => PersonalInfo;
-  getCurrentProgressSteps: () => ProgressStep[];
-  getCurrentHrTasks: () => HrTask[];
+  getEmployeePersonalInfo: (empId: string) => PersonalInfo;
+  getEmployeeProgressSteps: (empId: string) => ProgressStep[];
+  getEmployeeHrTasks: (empId: string) => HrTask[];
+  getEmployeeChecklist: (empId: string) => ChecklistItem[];
 
   addChecklistItem: (positionId: string, item: Omit<ChecklistTemplateItem, 'id'>) => void;
   updateChecklistItem: (positionId: string, itemId: string, updates: Partial<ChecklistTemplateItem>) => void;
@@ -284,8 +297,8 @@ interface OnboardingState {
   sendMessage: (conversationId: string, content: string, senderRole: UserRole) => void;
   markConversationRead: (conversationId: string) => void;
 
-  getChecklistGroups: (positionId: string) => ChecklistGroup[];
-  getChecklistStats: (positionId: string) => { total: number; completed: number; pending: number; processing: number; rejected: number; percent: number };
+  getChecklistGroups: (empId: string) => ChecklistGroup[];
+  getChecklistStats: (empId: string) => { total: number; completed: number; pending: number; processing: number; rejected: number; percent: number };
 }
 
 export const useOnboardingStore = create<OnboardingState>((set, get) => ({
@@ -294,7 +307,7 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
   currentPositionId: 'pos1',
   positions: defaultPositions,
   checklistTemplates: defaultTemplates,
-  checklistItems: initChecklistItems(),
+  checklistItemsMap: initChecklistItemsMap(),
   personalInfos: initPersonalInfos(),
   progressStepsMap: initProgressSteps(),
   hrTasks: initHrTasks(),
@@ -310,22 +323,24 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
   },
   setCurrentPositionId: (id) => set({ currentPositionId: id }),
 
-  getCurrentPersonalInfo: () => {
+  getEmployeePersonalInfo: (empId) => {
     const state = get();
-    return state.personalInfos[state.currentEmployeeId] || createDefaultPersonalInfo(state.currentEmployeeId);
+    return state.personalInfos[empId] || createDefaultPersonalInfo(empId);
   },
 
-  getCurrentProgressSteps: () => {
+  getEmployeeProgressSteps: (empId) => {
     const state = get();
-    return state.progressStepsMap[state.currentEmployeeId] || [];
+    return state.progressStepsMap[empId] || [];
   },
 
-  getCurrentHrTasks: () => {
+  getEmployeeHrTasks: (empId) => {
     const state = get();
-    return state.hrTasks.filter(t => {
-      const emp = state.employees.find(e => e.id === state.currentEmployeeId);
-      return t.employeeName === emp?.name;
-    });
+    return state.hrTasks.filter(t => t.employeeId === empId);
+  },
+
+  getEmployeeChecklist: (empId) => {
+    const state = get();
+    return state.checklistItemsMap[empId] || [];
   },
 
   addChecklistItem: (positionId, item) => set((state) => {
@@ -381,21 +396,26 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
     const tpl = state.checklistTemplates.find(t => t.positionId === positionId);
     if (!tpl) return {};
 
-    const existingItems = state.checklistItems.filter(i => i.positionId === positionId);
-    const newItems: ChecklistItem[] = tpl.items.map((tplItem) => {
+    const existingItems = state.checklistItemsMap[employeeId] || [];
+    const newItems: ChecklistItem[] = tpl.items.map((tplItem, idx) => {
       const existing = existingItems.find(ei => ei.title === tplItem.title);
       return existing || {
-        id: 'ci_' + positionId + '_' + tplItem.id,
+        id: `ci_${employeeId}_${Date.now()}_${idx}`,
         title: tplItem.title,
         description: tplItem.description,
         category: tplItem.category,
         status: 'pending',
-        positionId
+        positionId,
+        employeeId
       };
     });
 
-    const keepItems = state.checklistItems.filter(i => i.positionId !== positionId);
-    return { checklistItems: [...keepItems, ...newItems] };
+    return {
+      checklistItemsMap: {
+        ...state.checklistItemsMap,
+        [employeeId]: newItems
+      }
+    };
   }),
 
   submitPersonalInfo: (employeeId, info) => set((state) => {
@@ -426,13 +446,21 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
       auditedAt: new Date().toLocaleString('zh-CN').replace(/\//g, '-')
     };
 
-    const updatedSteps = state.progressStepsMap[employeeId]?.map(s =>
+    const updatedSteps = (state.progressStepsMap[employeeId] || []).map(s =>
       s.id === 'ps3' ? { ...s, status: 'completed' as TaskStatus, actualDate: new Date().toISOString().split('T')[0], assignee: '王HR' } : s
-    ) || state.progressStepsMap[employeeId];
+    );
+
+    const empItems = state.checklistItemsMap[employeeId] || [];
+    const updatedItems = empItems.map(item =>
+      item.category === 'process' && item.title.includes('紧急联系人')
+        ? { ...item, status: 'completed' as TaskStatus, rejectReason: undefined, completedAt: new Date().toLocaleString('zh-CN').replace(/\//g, '-') }
+        : item
+    );
 
     return {
       personalInfos: { ...state.personalInfos, [employeeId]: updatedInfo },
       progressStepsMap: { ...state.progressStepsMap, [employeeId]: updatedSteps },
+      checklistItemsMap: { ...state.checklistItemsMap, [employeeId]: updatedItems },
       employees: state.employees.map(e =>
         e.id === employeeId ? { ...e, infoStatus: 'completed' as TaskStatus } : e
       )
@@ -448,15 +476,16 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
       auditedAt: new Date().toLocaleString('zh-CN').replace(/\//g, '-')
     };
 
-    const updatedItems = state.checklistItems.map(item =>
-      item.category === 'process' && item.title.includes('紧急联系人') && item.positionId === (state.employees.find(e => e.id === employeeId)?.positionId)
+    const empItems = state.checklistItemsMap[employeeId] || [];
+    const updatedItems = empItems.map(item =>
+      item.category === 'process' && item.title.includes('紧急联系人')
         ? { ...item, status: 'rejected' as TaskStatus, rejectReason: reason }
         : item
     );
 
     return {
       personalInfos: { ...state.personalInfos, [employeeId]: updatedInfo },
-      checklistItems: updatedItems,
+      checklistItemsMap: { ...state.checklistItemsMap, [employeeId]: updatedItems },
       employees: state.employees.map(e =>
         e.id === employeeId ? { ...e, infoStatus: 'rejected' as TaskStatus } : e
       )
@@ -487,6 +516,7 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
 
     const newHrTask: HrTask = {
       id: taskId,
+      employeeId,
       title: mapping.title,
       employeeName: emp?.name || '未知员工',
       position: emp?.position || '',
@@ -505,9 +535,11 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
 
   markHrTaskDone: (taskId) => set((state) => {
     const task = state.hrTasks.find(t => t.id === taskId);
-    if (!task) return {};
+    if (!task || !task.employeeId) return {};
 
     const now = new Date().toLocaleString('zh-CN').replace(/\//g, '-');
+    const empId = task.employeeId;
+
     const updatedTasks = state.hrTasks.map(t =>
       t.id === taskId ? { ...t, status: 'completed' as TaskStatus, completedAt: now } : t
     );
@@ -519,30 +551,27 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
     const stepId = typeStepMap[task.title];
 
     let updatedProgressMap = state.progressStepsMap;
-    if (stepId) {
-      const emp = state.employees.find(e => e.name === task.employeeName);
-      if (emp) {
-        const empId = emp.id;
-        const updatedSteps = (state.progressStepsMap[empId] || []).map(s =>
-          s.id === stepId ? { ...s, status: 'completed' as TaskStatus, actualDate: new Date().toISOString().split('T')[0] } : s
-        );
-        updatedProgressMap = { ...state.progressStepsMap, [empId]: updatedSteps };
+    let updatedEmployees = state.employees;
 
-        const completed = updatedSteps.filter(s => s.status === 'completed').length;
-        const total = updatedSteps.length;
-        const newProgress = total > 0 ? Math.round((completed / total) * 100) : 0;
-        const updatedEmployees = state.employees.map(e =>
-          e.id === empId ? { ...e, overallProgress: Math.max(e.overallProgress, newProgress) } : e
-        );
-        return {
-          hrTasks: updatedTasks,
-          progressStepsMap: updatedProgressMap,
-          employees: updatedEmployees
-        };
-      }
+    if (stepId) {
+      const updatedSteps = (state.progressStepsMap[empId] || []).map(s =>
+        s.id === stepId ? { ...s, status: 'completed' as TaskStatus, actualDate: new Date().toISOString().split('T')[0] } : s
+      );
+      updatedProgressMap = { ...state.progressStepsMap, [empId]: updatedSteps };
+
+      const completed = updatedSteps.filter(s => s.status === 'completed').length;
+      const total = updatedSteps.length;
+      const newProgress = total > 0 ? Math.round((completed / total) * 100) : 0;
+      updatedEmployees = state.employees.map(e =>
+        e.id === empId ? { ...e, overallProgress: Math.max(e.overallProgress, newProgress) } : e
+      );
     }
 
-    return { hrTasks: updatedTasks, progressStepsMap: updatedProgressMap };
+    return {
+      hrTasks: updatedTasks,
+      progressStepsMap: updatedProgressMap,
+      employees: updatedEmployees
+    };
   }),
 
   sendReminder: (taskId) => {
@@ -560,19 +589,18 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
       return s;
     });
 
-    const emp = state.employees.find(e => e.id === employeeId);
-    const updatedItems = state.checklistItems.map(i => {
-      if (i.positionId === emp?.positionId && i.status !== 'completed') {
-        return { ...i, status: 'completed' as TaskStatus, completedAt: nowFull };
-      }
-      return i;
-    });
+    const empItems = state.checklistItemsMap[employeeId] || [];
+    const updatedItems = empItems.map(i =>
+      i.status !== 'completed'
+        ? { ...i, status: 'completed' as TaskStatus, completedAt: nowFull }
+        : i
+    );
 
     const completedSteps = updatedSteps.filter(s => s.status === 'completed').length;
     const overallProgress = updatedSteps.length > 0 ? Math.round((completedSteps / updatedSteps.length) * 100) : 0;
 
     const updatedTasks = state.hrTasks.map(t => {
-      if (t.employeeName === emp?.name && t.status !== 'completed') {
+      if (t.employeeId === employeeId && t.status !== 'completed') {
         return { ...t, status: 'completed' as TaskStatus, completedAt: nowFull };
       }
       return t;
@@ -586,7 +614,7 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
 
     return {
       progressStepsMap: { ...state.progressStepsMap, [employeeId]: updatedSteps },
-      checklistItems: updatedItems,
+      checklistItemsMap: { ...state.checklistItemsMap, [employeeId]: updatedItems },
       hrTasks: updatedTasks,
       employees: updatedEmployees
     };
@@ -629,9 +657,9 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
     )
   })),
 
-  getChecklistGroups: (positionId) => {
+  getChecklistGroups: (empId) => {
     const state = get();
-    const items = state.checklistItems.filter(i => i.positionId === positionId);
+    const items = state.checklistItemsMap[empId] || [];
     const groups: ChecklistGroup[] = (['document', 'process', 'training', 'system'] as TaskCategory[]).map(cat => ({
       category: cat,
       categoryName: categoryNames[cat],
@@ -640,9 +668,9 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
     return groups;
   },
 
-  getChecklistStats: (positionId) => {
+  getChecklistStats: (empId) => {
     const state = get();
-    const items = state.checklistItems.filter(i => i.positionId === positionId);
+    const items = state.checklistItemsMap[empId] || [];
     const total = items.length;
     const completed = items.filter(i => i.status === 'completed').length;
     const pending = items.filter(i => i.status === 'pending').length;

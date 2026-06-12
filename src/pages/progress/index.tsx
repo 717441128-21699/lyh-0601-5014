@@ -29,8 +29,10 @@ const ProgressPage: React.FC = () => {
   const sendReminder = useOnboardingStore((s) => s.sendReminder);
   const markEmployeeArrived = useOnboardingStore((s) => s.markEmployeeArrived);
 
-  const [selectedEmpIdx, setSelectedEmpIdx] = useState(0);
-  const selectedEmployee = employees[selectedEmpIdx];
+  const selectedEmployee = useMemo(
+    () => employees.find((e) => e.id === currentEmployeeId),
+    [employees, currentEmployeeId]
+  );
 
   const [showModal, setShowModal] = useState(false);
   const [currentTaskType, setCurrentTaskType] = useState('');
@@ -42,9 +44,8 @@ const ProgressPage: React.FC = () => {
   );
 
   const currentHrTasks = useMemo(() => {
-    const emp = employees.find(e => e.id === currentEmployeeId);
-    return hrTasks.filter(t => t.employeeName === emp?.name);
-  }, [hrTasks, currentEmployeeId, employees]);
+    return hrTasks.filter((t) => t.employeeId === currentEmployeeId);
+  }, [hrTasks, currentEmployeeId]);
 
   const stats = useMemo(() => {
     const completed = progressSteps.filter(s => s.status === 'completed').length;
@@ -60,10 +61,12 @@ const ProgressPage: React.FC = () => {
 
   const handleSelectEmployee = () => {
     Taro.showActionSheet({
-      itemList: employees.map(e => e.name),
+      itemList: employees.map((e) => e.name),
       success: (res) => {
-        setSelectedEmpIdx(res.tapIndex);
-        setCurrentEmployeeId(employees[res.tapIndex].id);
+        const selected = employees[res.tapIndex];
+        if (selected) {
+          setCurrentEmployeeId(selected.id);
+        }
       }
     });
   };
@@ -303,6 +306,12 @@ const ProgressPage: React.FC = () => {
                       <View className={styles.detailItem}>
                         <Text className={styles.detailLabel}>负责人：</Text>
                         <Text className={styles.taskAssignee}>{task.assignee}</Text>
+                      </View>
+                    )}
+                    {task.scheduledAt && (
+                      <View className={styles.detailItem}>
+                        <Text className={styles.detailLabel}>安排时间：</Text>
+                        <Text className={styles.detailValue}>{task.scheduledAt}</Text>
                       </View>
                     )}
                     {task.completedAt && (

@@ -21,6 +21,7 @@ export interface ChecklistItem {
   rejectReason?: string;
   assignee?: string;
   positionId?: string;
+  employeeId?: string;
 }
 
 export interface ChecklistGroup {
@@ -110,6 +111,7 @@ export interface Conversation {
 
 export interface HrTask {
   id: string;
+  employeeId?: string;
   title: string;
   employeeName: string;
   position: string;
