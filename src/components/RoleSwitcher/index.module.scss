@@ -1,0 +1,23 @@
+@use '@/styles/variables.scss' as *;
+
+.container {
+  display: flex;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: $radius-round;
+  padding: 4rpx;
+}
+
+.tab {
+  padding: 8rpx 24rpx;
+  font-size: $font-size-sm;
+  color: rgba(255, 255, 255, 0.7);
+  border-radius: $radius-round;
+  transition: all $transition-base;
+
+  &.active {
+    background-color: #ffffff;
+    color: $color-primary;
+    font-weight: $font-weight-semibold;
+  }
+}

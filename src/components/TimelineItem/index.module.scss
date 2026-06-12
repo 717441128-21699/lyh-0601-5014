@@ -1,0 +1,110 @@
+@use '@/styles/variables.scss' as *;
+
+.item {
+  display: flex;
+  position: relative;
+  padding-bottom: $spacing-xl;
+
+  &:last-child {
+    padding-bottom: 0;
+
+    .connector {
+      display: none;
+    }
+  }
+}
+
+.left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-right: $spacing-lg;
+}
+
+.dot {
+  width: 32rpx;
+  height: 32rpx;
+  border-radius: $radius-round;
+  flex-shrink: 0;
+  z-index: 1;
+  border: 4rpx solid #ffffff;
+  box-shadow: 0 0 0 2rpx $color-border;
+
+  &.completed {
+    background-color: $color-success;
+    box-shadow: 0 0 0 2rpx $color-success;
+  }
+
+  &.processing {
+    background-color: $color-primary;
+    box-shadow: 0 0 0 2rpx $color-primary;
+  }
+
+  &.pending {
+    background-color: #ffffff;
+  }
+
+  &.rejected {
+    background-color: $color-error;
+    box-shadow: 0 0 0 2rpx $color-error;
+  }
+}
+
+.connector {
+  flex: 1;
+  width: 4rpx;
+  background-color: $color-border;
+  margin-top: $spacing-sm;
+
+  &.completed {
+    background-color: $color-success;
+  }
+}
+
+.right {
+  flex: 1;
+  padding-bottom: $spacing-xs;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: $spacing-xs;
+}
+
+.title {
+  font-size: $font-size-md;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+}
+
+.description {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+  line-height: 1.5;
+  margin-bottom: $spacing-sm;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-sm;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+}
+
+.metaItem {
+  display: flex;
+  align-items: center;
+}
+
+.taskTypeTag {
+  display: inline-block;
+  background-color: $color-primary-bg;
+  color: $color-primary;
+  padding: 4rpx 12rpx;
+  border-radius: $radius-xs;
+  font-size: $font-size-xs;
+  margin-right: $spacing-sm;
+}
