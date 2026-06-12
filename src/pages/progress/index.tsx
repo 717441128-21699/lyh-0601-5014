@@ -20,9 +20,10 @@ const taskTypes = [
 const ProgressPage: React.FC = () => {
   const role = useOnboardingStore((s) => s.role);
   const employees = useOnboardingStore((s) => s.employees);
-  const progressSteps = useOnboardingStore((s) => s.progressSteps);
-  const hrTasks = useOnboardingStore((s) => s.hrTasks);
   const currentEmployeeId = useOnboardingStore((s) => s.currentEmployeeId);
+  const setCurrentEmployeeId = useOnboardingStore((s) => s.setCurrentEmployeeId);
+  const progressStepsMap = useOnboardingStore((s) => s.progressStepsMap);
+  const hrTasks = useOnboardingStore((s) => s.hrTasks);
   const scheduleTask = useOnboardingStore((s) => s.scheduleTask);
   const markHrTaskDone = useOnboardingStore((s) => s.markHrTaskDone);
   const sendReminder = useOnboardingStore((s) => s.sendReminder);
@@ -35,6 +36,16 @@ const ProgressPage: React.FC = () => {
   const [currentTaskType, setCurrentTaskType] = useState('');
   const [assignee, setAssignee] = useState('');
 
+  const progressSteps = useMemo(
+    () => progressStepsMap[currentEmployeeId] || [],
+    [progressStepsMap, currentEmployeeId]
+  );
+
+  const currentHrTasks = useMemo(() => {
+    const emp = employees.find(e => e.id === currentEmployeeId);
+    return hrTasks.filter(t => t.employeeName === emp?.name);
+  }, [hrTasks, currentEmployeeId, employees]);
+
   const stats = useMemo(() => {
     const completed = progressSteps.filter(s => s.status === 'completed').length;
     const processing = progressSteps.filter(s => s.status === 'processing').length;
@@ -44,13 +55,16 @@ const ProgressPage: React.FC = () => {
     return { completed, processing, pending, total, percent };
   }, [progressSteps]);
 
-  const pendingTasks = hrTasks.filter(t => t.status !== 'completed');
-  const completedTasks = hrTasks.filter(t => t.status === 'completed');
+  const pendingTasks = currentHrTasks.filter(t => t.status !== 'completed');
+  const completedTasks = currentHrTasks.filter(t => t.status === 'completed');
 
   const handleSelectEmployee = () => {
     Taro.showActionSheet({
       itemList: employees.map(e => e.name),
-      success: (res) => setSelectedEmpIdx(res.tapIndex)
+      success: (res) => {
+        setSelectedEmpIdx(res.tapIndex);
+        setCurrentEmployeeId(employees[res.tapIndex].id);
+      }
     });
   };
 
@@ -66,7 +80,7 @@ const ProgressPage: React.FC = () => {
       Taro.showToast({ title: '请填写负责人', icon: 'none' });
       return;
     }
-    scheduleTask(currentTaskType, assignee.trim());
+    scheduleTask(currentEmployeeId, currentTaskType, assignee.trim());
     Taro.showToast({ title: `${currentTaskType}已安排`, icon: 'success' });
     setShowModal(false);
     setAssignee('');
@@ -83,6 +97,16 @@ const ProgressPage: React.FC = () => {
         }
       }
     });
+  };
+
+  const isScheduled = (taskType: string) => {
+    return pendingTasks.find(pt => pt.taskType === `${taskType}安排`)
+      || completedTasks.find(pt => pt.taskType === `${taskType}安排`);
+  };
+
+  const getTaskStatus = (taskType: string) => {
+    const task = currentHrTasks.find(t => t.taskType === `${taskType}安排`);
+    return task?.status || 'pending';
   };
 
   if (role === 'hr') {
@@ -102,10 +126,10 @@ const ProgressPage: React.FC = () => {
             <ProgressCard
               title="整体任务进度"
               subtitle={`当前员工：${selectedEmployee?.name || ''}`}
-              percent={hrTasks.length > 0 ? Math.round((completedTasks.length / hrTasks.length) * 100) : 0}
-              completed={completedTasks.length}
-              total={hrTasks.length}
-              pending={pendingTasks.length}
+              percent={stats.percent}
+              completed={stats.completed}
+              total={stats.total}
+              pending={stats.pending}
             />
           </View>
 
@@ -120,32 +144,46 @@ const ProgressPage: React.FC = () => {
               入职任务安排
             </View>
             {taskTypes.map(t => {
-              const scheduled = pendingTasks.find(pt => pt.taskType === `${t.type}安排`);
+              const scheduled = isScheduled(t.type);
+              const status = getTaskStatus(t.type);
+              const task = currentHrTasks.find(ht => ht.taskType === `${t.type}安排`);
               return (
                 <View key={t.type} className={styles.taskCard}>
                   <View className={styles.taskHeader}>
                     <Text className={styles.taskTitle}>{t.type}安排</Text>
                     {scheduled ? (
-                      <StatusBadge status={scheduled.status} customText="已安排" />
+                      <StatusBadge status={status} customText={status === 'completed' ? '已完成' : '已安排'} />
                     ) : (
                       <StatusBadge status="pending" customText="待安排" />
                     )}
                   </View>
                   <Text className={styles.taskDesc}>{t.desc}</Text>
-                  {scheduled && (
+                  {task && (
                     <View className={styles.hrTaskDetail}>
-                      <View className={styles.detailItem}>
-                        <Text className={styles.detailLabel}>负责人：</Text>
-                        <Text className={styles.taskAssignee}>{scheduled.assignee}</Text>
-                      </View>
-                      <View className={styles.detailItem}>
-                        <Text className={styles.detailLabel}>安排时间：</Text>
-                        <Text className={styles.detailValue}>{scheduled.scheduledAt}</Text>
-                      </View>
-                      <View className={styles.detailItem}>
-                        <Text className={styles.detailLabel}>截止时间：</Text>
-                        <Text className={styles.detailValue}>{scheduled.deadline}</Text>
-                      </View>
+                      {task.assignee && (
+                        <View className={styles.detailItem}>
+                          <Text className={styles.detailLabel}>负责人：</Text>
+                          <Text className={styles.taskAssignee}>{task.assignee}</Text>
+                        </View>
+                      )}
+                      {task.scheduledAt && (
+                        <View className={styles.detailItem}>
+                          <Text className={styles.detailLabel}>安排时间：</Text>
+                          <Text className={styles.detailValue}>{task.scheduledAt}</Text>
+                        </View>
+                      )}
+                      {task.deadline && (
+                        <View className={styles.detailItem}>
+                          <Text className={styles.detailLabel}>截止时间：</Text>
+                          <Text className={styles.detailValue}>{task.deadline}</Text>
+                        </View>
+                      )}
+                      {task.completedAt && (
+                        <View className={styles.detailItem}>
+                          <Text className={styles.detailLabel}>完成时间：</Text>
+                          <Text className={styles.detailValue}>{task.completedAt}</Text>
+                        </View>
+                      )}
                     </View>
                   )}
                   <View className={styles.taskActions}>
@@ -157,25 +195,25 @@ const ProgressPage: React.FC = () => {
                         安排{t.type}
                       </Button>
                     )}
-                    {scheduled && scheduled.status === 'processing' && (
+                    {scheduled && status === 'processing' && (
                       <Button
                         className={classnames(styles.btn, styles.btnOutline)}
-                        onClick={() => sendReminder(scheduled.id)}
+                        onClick={() => task && sendReminder(task.id)}
                       >
                         发送提醒
                       </Button>
                     )}
-                    {scheduled && scheduled.status === 'processing' && (
+                    {scheduled && status === 'processing' && (
                       <Button
                         className={classnames(styles.btn, styles.btnPrimary)}
-                        onClick={() => markHrTaskDone(scheduled.id)}
+                        onClick={() => task && markHrTaskDone(task.id)}
                       >
                         标记完成
                       </Button>
                     )}
-                    {scheduled && scheduled.status === 'completed' && (
+                    {scheduled && status === 'completed' && (
                       <Text style={{ color: '#00B42A', fontSize: 24, fontWeight: 600 }}>
-                        ✅ 已完成（{scheduled.completedAt}）
+                        ✅ 已完成
                       </Text>
                     )}
                   </View>
@@ -203,20 +241,20 @@ const ProgressPage: React.FC = () => {
                   <View className={styles.hrTaskSub}>
                     {task.employeeName} · {task.position}
                   </View>
-                  <View className={styles.hrTaskDetail}>
-                    {task.assignee && (
+                  {task.assignee && (
+                    <View className={styles.hrTaskDetail}>
                       <View className={styles.detailItem}>
                         <Text className={styles.detailLabel}>负责人：</Text>
                         <Text className={styles.taskAssignee}>{task.assignee}</Text>
                       </View>
-                    )}
-                    {task.scheduledAt && (
-                      <View className={styles.detailItem}>
-                        <Text className={styles.detailLabel}>安排时间：</Text>
-                        <Text className={styles.detailValue}>{task.scheduledAt}</Text>
-                      </View>
-                    )}
-                  </View>
+                      {task.scheduledAt && (
+                        <View className={styles.detailItem}>
+                          <Text className={styles.detailLabel}>安排时间：</Text>
+                          <Text className={styles.detailValue}>{task.scheduledAt}</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
                   <View className={styles.hrTaskMeta}>
                     <View>
                       截止：{task.deadline}
@@ -244,6 +282,40 @@ const ProgressPage: React.FC = () => {
               ))
             )}
           </View>
+
+          {completedTasks.length > 0 && (
+            <View className={styles.taskSection}>
+              <View className={styles.sectionTitle}>
+                <Text className={styles.sectionIcon}>✅</Text>
+                已完成任务（{completedTasks.length}）
+              </View>
+              {completedTasks.map(task => (
+                <View key={task.id} className={styles.hrTaskItem} style={{ opacity: 0.8 }}>
+                  <View className={styles.hrTaskRow}>
+                    <Text className={styles.hrTaskTitle} style={{ textDecoration: 'line-through' }}>{task.title}</Text>
+                    <StatusBadge status="completed" />
+                  </View>
+                  <View className={styles.hrTaskSub}>
+                    {task.employeeName} · {task.position}
+                  </View>
+                  <View className={styles.hrTaskDetail}>
+                    {task.assignee && (
+                      <View className={styles.detailItem}>
+                        <Text className={styles.detailLabel}>负责人：</Text>
+                        <Text className={styles.taskAssignee}>{task.assignee}</Text>
+                      </View>
+                    )}
+                    {task.completedAt && (
+                      <View className={styles.detailItem}>
+                        <Text className={styles.detailLabel}>完成时间：</Text>
+                        <Text className={styles.detailValue}>{task.completedAt}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
 
           <View className={styles.taskSection}>
             <View className={styles.sectionTitle}>
@@ -363,27 +435,38 @@ const ProgressPage: React.FC = () => {
           {progressSteps
             .filter(s => s.status === 'processing' || s.status === 'pending')
             .slice(0, 5)
-            .map(step => (
-              <View key={step.id} className={styles.taskCard}>
-                <View className={styles.taskHeader}>
-                  <Text className={styles.taskTitle}>{step.title}</Text>
-                  <StatusBadge status={step.status} />
-                </View>
-                <Text className={styles.taskDesc}>{step.description}</Text>
-                <View className={styles.taskMeta}>
-                  <Text>负责人：{step.assignee || '-'}</Text>
-                  <Text>预计：{step.expectedDate}</Text>
-                </View>
-                {step.scheduledAt && (
-                  <View className={styles.hrTaskDetail} style={{ marginTop: 10 }}>
-                    <View className={styles.detailItem}>
-                      <Text className={styles.detailLabel}>安排时间：</Text>
-                      <Text className={styles.detailValue}>{step.scheduledAt}</Text>
-                    </View>
+            .map(step => {
+              const task = currentHrTasks.find(ht => ht.title === step.title);
+              return (
+                <View key={step.id} className={styles.taskCard}>
+                  <View className={styles.taskHeader}>
+                    <Text className={styles.taskTitle}>{step.title}</Text>
+                    <StatusBadge status={step.status} />
                   </View>
-                )}
-              </View>
-            ))}
+                  <Text className={styles.taskDesc}>{step.description}</Text>
+                  <View className={styles.taskMeta}>
+                    <Text>负责人：{step.assignee || '-'}</Text>
+                    <Text>预计：{step.expectedDate}</Text>
+                  </View>
+                  {task && (
+                    <View className={styles.hrTaskDetail} style={{ marginTop: 10 }}>
+                      {task.assignee && (
+                        <View className={styles.detailItem}>
+                          <Text className={styles.detailLabel}>负责人：</Text>
+                          <Text className={styles.taskAssignee}>{task.assignee}</Text>
+                        </View>
+                      )}
+                      {task.scheduledAt && (
+                        <View className={styles.detailItem}>
+                          <Text className={styles.detailLabel}>安排时间：</Text>
+                          <Text className={styles.detailValue}>{task.scheduledAt}</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </View>
+              );
+            })}
         </View>
       </ScrollView>
     </View>

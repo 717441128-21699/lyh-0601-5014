@@ -17,11 +17,12 @@ const categoryOptions: { value: TaskCategory; label: string; icon: string }[] = 
 const ConfigPage: React.FC = () => {
   const positions = useOnboardingStore((s) => s.positions);
   const templates = useOnboardingStore((s) => s.checklistTemplates);
+  const employees = useOnboardingStore((s) => s.employees);
+  const currentEmployeeId = useOnboardingStore((s) => s.currentEmployeeId);
   const addChecklistItem = useOnboardingStore((s) => s.addChecklistItem);
   const updateChecklistItem = useOnboardingStore((s) => s.updateChecklistItem);
   const deleteChecklistItem = useOnboardingStore((s) => s.deleteChecklistItem);
   const applyChecklistToEmployee = useOnboardingStore((s) => s.applyChecklistToEmployee);
-  const currentEmployeeId = useOnboardingStore((s) => s.currentEmployeeId);
 
   const [selectedPosIdx, setSelectedPosIdx] = useState(0);
   const selectedPos = positions[selectedPosIdx];
@@ -111,9 +112,10 @@ const ConfigPage: React.FC = () => {
   };
 
   const handleApplyToEmployee = () => {
+    const emp = employees.find(e => e.id === currentEmployeeId);
     Taro.showModal({
       title: '应用到员工',
-      content: `将「${selectedPos.name}」的最新清单模板应用给当前员工？已完成的项会保留进度。`,
+      content: `将「${selectedPos.name}」的最新清单模板应用给员工「${emp?.name || '当前选中的员工'}」？\n已完成的项会保留进度。`,
       success: (res) => {
         if (res.confirm) {
           applyChecklistToEmployee(selectedPos.id, currentEmployeeId);

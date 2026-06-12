@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, Image, Input, Textarea, Button } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import classnames from 'classnames';
@@ -16,47 +16,49 @@ interface UploadDoc {
 
 const InfoPage: React.FC = () => {
   const role = useOnboardingStore((s) => s.role);
-  const personalInfo = useOnboardingStore((s) => s.personalInfo);
+  const personalInfos = useOnboardingStore((s) => s.personalInfos);
   const employees = useOnboardingStore((s) => s.employees);
+  const currentEmployeeId = useOnboardingStore((s) => s.currentEmployeeId);
+  const setCurrentEmployeeId = useOnboardingStore((s) => s.setCurrentEmployeeId);
   const submitPersonalInfo = useOnboardingStore((s) => s.submitPersonalInfo);
   const approvePersonalInfo = useOnboardingStore((s) => s.approvePersonalInfo);
   const rejectPersonalInfo = useOnboardingStore((s) => s.rejectPersonalInfo);
-  const currentEmployeeId = useOnboardingStore((s) => s.currentEmployeeId);
 
-  const [selectedEmpIdx, setSelectedEmpIdx] = useState(0);
-  const selectedEmployee = employees[selectedEmpIdx];
+  const personalInfo = useMemo(() => {
+    if (role === 'employee') {
+      return personalInfos['emp1'] || personalInfos[currentEmployeeId];
+    }
+    return personalInfos[currentEmployeeId];
+  }, [role, personalInfos, currentEmployeeId]);
 
-  const [docs, setDocs] = useState<UploadDoc[]>([
-    { key: 'idCard', label: '身份证', uploaded: personalInfo.idCardUploaded, url: personalInfo.idCardUrl },
-    { key: 'diploma', label: '学历证书', uploaded: personalInfo.diplomaUploaded, url: personalInfo.diplomaUrl },
-    { key: 'avatar', label: '证件照', uploaded: personalInfo.avatarUploaded, url: personalInfo.avatarUrl }
-  ]);
+  const selectedEmployee = useMemo(
+    () => employees.find(e => e.id === currentEmployeeId),
+    [employees, currentEmployeeId]
+  );
 
-  const [contact, setContact] = useState({
-    name: personalInfo.emergencyContact.name,
-    relationship: personalInfo.emergencyContact.relationship,
-    phone: personalInfo.emergencyContact.phone
-  });
-
-  const [arrivalDate, setArrivalDate] = useState(personalInfo.arrivalDate);
-  const [bankCard, setBankCard] = useState(personalInfo.bankCard);
-  const [address, setAddress] = useState(personalInfo.address);
+  const [docs, setDocs] = useState<UploadDoc[]>([]);
+  const [contact, setContact] = useState({ name: '', relationship: '', phone: '' });
+  const [arrivalDate, setArrivalDate] = useState('');
+  const [bankCard, setBankCard] = useState('');
+  const [address, setAddress] = useState('');
   const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
-    setDocs([
-      { key: 'idCard', label: '身份证', uploaded: personalInfo.idCardUploaded, url: personalInfo.idCardUrl },
-      { key: 'diploma', label: '学历证书', uploaded: personalInfo.diplomaUploaded, url: personalInfo.diplomaUrl },
-      { key: 'avatar', label: '证件照', uploaded: personalInfo.avatarUploaded, url: personalInfo.avatarUrl }
-    ]);
-    setContact({
-      name: personalInfo.emergencyContact.name,
-      relationship: personalInfo.emergencyContact.relationship,
-      phone: personalInfo.emergencyContact.phone
-    });
-    setArrivalDate(personalInfo.arrivalDate);
-    setBankCard(personalInfo.bankCard);
-    setAddress(personalInfo.address);
+    if (personalInfo) {
+      setDocs([
+        { key: 'idCard', label: '身份证', uploaded: personalInfo.idCardUploaded, url: personalInfo.idCardUrl },
+        { key: 'diploma', label: '学历证书', uploaded: personalInfo.diplomaUploaded, url: personalInfo.diplomaUrl },
+        { key: 'avatar', label: '证件照', uploaded: personalInfo.avatarUploaded, url: personalInfo.avatarUrl }
+      ]);
+      setContact({
+        name: personalInfo.emergencyContact.name,
+        relationship: personalInfo.emergencyContact.relationship,
+        phone: personalInfo.emergencyContact.phone
+      });
+      setArrivalDate(personalInfo.arrivalDate);
+      setBankCard(personalInfo.bankCard);
+      setAddress(personalInfo.address);
+    }
   }, [personalInfo]);
 
   const handleUpload = (key: string) => {
@@ -89,7 +91,9 @@ const InfoPage: React.FC = () => {
     const avatarUrl = docs.find(d => d.key === 'avatar')?.url;
     const diplomaUrl = docs.find(d => d.key === 'diploma')?.url;
 
-    submitPersonalInfo({
+    const targetId = role === 'employee' ? 'emp1' : currentEmployeeId;
+
+    submitPersonalInfo(targetId, {
       idCardUploaded,
       idCardUrl,
       avatarUploaded,
@@ -110,7 +114,7 @@ const InfoPage: React.FC = () => {
       content: `确认员工「${selectedEmployee?.name || ''}」的资料审核通过？`,
       success: (res) => {
         if (res.confirm) {
-          approvePersonalInfo();
+          approvePersonalInfo(currentEmployeeId);
           Taro.showToast({ title: '已通过审核', icon: 'success' });
         }
       }
@@ -127,7 +131,7 @@ const InfoPage: React.FC = () => {
       content: `将退回员工「${selectedEmployee?.name || ''}」的资料？\n原因：${rejectReason}`,
       success: (res) => {
         if (res.confirm) {
-          rejectPersonalInfo(rejectReason.trim());
+          rejectPersonalInfo(currentEmployeeId, rejectReason.trim());
           Taro.showToast({ title: '已退回修改', icon: 'success' });
           setRejectReason('');
         }
@@ -140,7 +144,8 @@ const InfoPage: React.FC = () => {
     Taro.showActionSheet({
       itemList: names,
       success: (res) => {
-        setSelectedEmpIdx(res.tapIndex);
+        const selected = employees[res.tapIndex];
+        setCurrentEmployeeId(selected.id);
       }
     });
   };
@@ -148,7 +153,7 @@ const InfoPage: React.FC = () => {
   const getDocStatus = (key: string): 'completed' | 'pending' | 'rejected' => {
     const d = docs.find(x => x.key === key);
     if (!d?.uploaded) return 'pending';
-    if (personalInfo.auditStatus === 'rejected' && key === 'diploma') return 'rejected';
+    if (personalInfo?.auditStatus === 'rejected' && key === 'diploma') return 'rejected';
     return 'completed';
   };
 
@@ -177,7 +182,7 @@ const InfoPage: React.FC = () => {
             <Text className={styles.hrSelectArrow}>▼</Text>
           </View>
 
-          {personalInfo.auditStatus !== 'pending' && (
+          {personalInfo && personalInfo.auditStatus !== 'pending' && (
             <View className={styles.auditResultBox}>
               <View className={styles.auditResultRow}>
                 <Text className={styles.auditResultLabel}>当前审核状态</Text>
@@ -223,7 +228,7 @@ const InfoPage: React.FC = () => {
               <Text className={styles.infoLabel}>邮箱</Text>
               <Text className={styles.infoValue}>{selectedEmployee?.email}</Text>
             </View>
-            {personalInfo.submittedAt && (
+            {personalInfo?.submittedAt && (
               <View className={styles.infoRow}>
                 <Text className={styles.infoLabel}>提交时间</Text>
                 <Text className={styles.infoValue}>{personalInfo.submittedAt}</Text>
@@ -329,20 +334,20 @@ const InfoPage: React.FC = () => {
         </View>
       </View>
       <View className={styles.content}>
-        {personalInfo.auditStatus === 'rejected' && personalInfo.auditRejectReason && (
+        {personalInfo?.auditStatus === 'rejected' && personalInfo?.auditRejectReason && (
           <View className={styles.rejectBox}>
             <View className={styles.rejectTitle}>⚠️ 资料审核未通过，请修改后重新提交</View>
             <View className={styles.rejectReasonLabel}>退回原因：</View>
             <View className={styles.rejectContent}>{personalInfo.auditRejectReason}</View>
           </View>
         )}
-        {personalInfo.auditStatus === 'pending' && personalInfo.submittedAt && (
+        {personalInfo?.auditStatus === 'pending' && personalInfo?.submittedAt && (
           <View className={styles.pendingBox}>
             <View className={styles.pendingTitle}>⏳ 资料审核中</View>
             <View className={styles.pendingContent}>您于 {personalInfo.submittedAt} 提交的资料正在审核中，请耐心等待</View>
           </View>
         )}
-        {personalInfo.auditStatus === 'completed' && (
+        {personalInfo?.auditStatus === 'completed' && (
           <View className={styles.successBox}>
             <View className={styles.successTitle}>✅ 资料审核已通过</View>
             <View className={styles.successContent}>所有资料已通过审核，请继续完成其他入职事项</View>
@@ -462,9 +467,9 @@ const InfoPage: React.FC = () => {
         <Button
           className={classnames(styles.btn, styles.btnPrimary)}
           onClick={handleSubmit}
-          disabled={personalInfo.auditStatus === 'pending'}
+          disabled={personalInfo?.auditStatus === 'pending'}
         >
-          {personalInfo.auditStatus === 'pending' ? '审核中...' : personalInfo.auditStatus === 'completed' ? '已审核通过' : personalInfo.auditStatus === 'rejected' ? '重新提交' : '提交资料'}
+          {personalInfo?.auditStatus === 'pending' ? '审核中...' : personalInfo?.auditStatus === 'completed' ? '已审核通过' : personalInfo?.auditStatus === 'rejected' ? '重新提交' : '提交资料'}
         </Button>
       </View>
     </View>

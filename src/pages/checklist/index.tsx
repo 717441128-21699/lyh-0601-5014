@@ -15,11 +15,13 @@ type FilterType = 'all' | TaskStatus;
 const ChecklistPage: React.FC = () => {
   const role = useOnboardingStore((s) => s.role);
   const employees = useOnboardingStore((s) => s.employees);
+  const currentEmployeeId = useOnboardingStore((s) => s.currentEmployeeId);
   const currentPositionId = useOnboardingStore((s) => s.currentPositionId);
   const positions = useOnboardingStore((s) => s.positions);
   const getChecklistGroups = useOnboardingStore((s) => s.getChecklistGroups);
   const getChecklistStats = useOnboardingStore((s) => s.getChecklistStats);
   const applyChecklistToEmployee = useOnboardingStore((s) => s.applyChecklistToEmployee);
+  const setCurrentEmployeeId = useOnboardingStore((s) => s.setCurrentEmployeeId);
 
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
 
@@ -31,8 +33,23 @@ const ChecklistPage: React.FC = () => {
     { key: 'rejected', label: '已退回' }
   ];
 
-  const stats = useMemo(() => getChecklistStats(), [getChecklistStats]);
-  const groups = useMemo(() => getChecklistGroups(), [getChecklistGroups]);
+  const empPositionId = useMemo(() => {
+    if (role === 'employee') {
+      const emp = employees.find(e => e.id === 'emp1');
+      return emp?.positionId || currentPositionId;
+    }
+    const emp = employees.find(e => e.id === currentEmployeeId);
+    return emp?.positionId || currentPositionId;
+  }, [role, currentEmployeeId, currentPositionId, employees]);
+
+  const stats = useMemo(
+    () => getChecklistStats(empPositionId),
+    [getChecklistStats, empPositionId]
+  );
+  const groups = useMemo(
+    () => getChecklistGroups(empPositionId),
+    [getChecklistGroups, empPositionId]
+  );
 
   const filteredGroups = useMemo(() => {
     if (activeFilter === 'all') return groups;
@@ -53,6 +70,7 @@ const ChecklistPage: React.FC = () => {
   };
 
   const handleEmployeeClick = (empId: string) => {
+    setCurrentEmployeeId(empId);
     Taro.navigateTo({ url: '/pages/employee/index?id=' + empId });
   };
 
@@ -61,13 +79,14 @@ const ChecklistPage: React.FC = () => {
   };
 
   const handleApplyTemplate = () => {
-    const pos = positions.find(p => p.id === currentPositionId);
+    const pos = positions.find(p => p.id === empPositionId);
+    const emp = employees.find(e => e.id === (role === 'employee' ? 'emp1' : currentEmployeeId));
     Taro.showModal({
       title: '确认应用模板',
-      content: `将「${pos?.name || '当前岗位'}」的入职清单模板应用给当前员工？`,
+      content: `将「${pos?.name || '当前岗位'}」的入职清单模板应用给员工「${emp?.name || ''}」？`,
       success: (res) => {
         if (res.confirm) {
-          applyChecklistToEmployee(currentPositionId, 'emp1');
+          applyChecklistToEmployee(empPositionId, role === 'employee' ? 'emp1' : currentEmployeeId);
           Taro.showToast({ title: '已应用最新清单', icon: 'success' });
         }
       }
