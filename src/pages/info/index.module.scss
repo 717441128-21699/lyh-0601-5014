@@ -276,3 +276,82 @@
 .hrSelectArrow {
   color: $color-text-tertiary;
 }
+
+.auditResultBox {
+  background-color: $color-bg-card;
+  border-radius: $radius-md;
+  padding: $spacing-md;
+  margin-bottom: $spacing-md;
+  box-shadow: $shadow-card;
+}
+
+.auditResultRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: $spacing-xs 0;
+}
+
+.auditResultLabel {
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
+}
+
+.auditResultValue {
+  font-size: $font-size-sm;
+  color: $color-text-primary;
+}
+
+.auditRejectText {
+  font-size: $font-size-sm;
+  color: $color-error;
+  text-align: right;
+  flex: 1;
+}
+
+.pendingBox {
+  background-color: $color-primary-bg;
+  border-radius: $radius-sm;
+  padding: $spacing-md;
+  margin-bottom: $spacing-lg;
+}
+
+.pendingTitle {
+  font-size: $font-size-sm;
+  font-weight: $font-weight-semibold;
+  color: $color-primary;
+  margin-bottom: $spacing-xs;
+}
+
+.pendingContent {
+  font-size: $font-size-sm;
+  color: $color-primary;
+  line-height: 1.5;
+}
+
+.successBox {
+  background-color: $color-success-bg;
+  border-radius: $radius-sm;
+  padding: $spacing-md;
+  margin-bottom: $spacing-lg;
+}
+
+.successTitle {
+  font-size: $font-size-sm;
+  font-weight: $font-weight-semibold;
+  color: $color-success;
+  margin-bottom: $spacing-xs;
+}
+
+.successContent {
+  font-size: $font-size-sm;
+  color: $color-success;
+  line-height: 1.5;
+}
+
+.rejectReasonLabel {
+  font-size: $font-size-xs;
+  color: $color-error;
+  margin-top: $spacing-xs;
+  opacity: 0.8;
+}

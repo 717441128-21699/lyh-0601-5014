@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, Button } from '@tarojs/components';
+import { View, Text, ScrollView, Button, Input } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import classnames from 'classnames';
 import styles from './index.module.scss';
@@ -7,73 +7,85 @@ import RoleSwitcher from '@/components/RoleSwitcher';
 import ProgressCard from '@/components/ProgressCard';
 import TimelineItem from '@/components/TimelineItem';
 import StatusBadge from '@/components/StatusBadge';
-import { useUserRole } from '@/store/UserContext';
-import { mockProgressSteps, mockHrTasks, mockEmployees } from '@/data/mockData';
+import { useOnboardingStore } from '@/store/onboardingStore';
+
+const taskTypes = [
+  { type: '工位', desc: '联系行政部门安排工位位置', defaultAssignee: '李行政' },
+  { type: '账号', desc: '开通OA、邮箱等办公系统账号', defaultAssignee: 'IT部小王' },
+  { type: '设备', desc: '准备电脑、显示器等办公设备', defaultAssignee: 'IT部小王' },
+  { type: '体检', desc: '为新员工预约入职体检', defaultAssignee: '李行政' },
+  { type: '培训', desc: '安排新员工入职培训', defaultAssignee: '培训部张老师' }
+];
 
 const ProgressPage: React.FC = () => {
-  const { role } = useUserRole();
-  const [selectedEmployee, setSelectedEmployee] = useState(mockEmployees[0]);
-  const [hrTasks, setHrTasks] = useState(mockHrTasks);
+  const role = useOnboardingStore((s) => s.role);
+  const employees = useOnboardingStore((s) => s.employees);
+  const progressSteps = useOnboardingStore((s) => s.progressSteps);
+  const hrTasks = useOnboardingStore((s) => s.hrTasks);
+  const currentEmployeeId = useOnboardingStore((s) => s.currentEmployeeId);
+  const scheduleTask = useOnboardingStore((s) => s.scheduleTask);
+  const markHrTaskDone = useOnboardingStore((s) => s.markHrTaskDone);
+  const sendReminder = useOnboardingStore((s) => s.sendReminder);
+  const markEmployeeArrived = useOnboardingStore((s) => s.markEmployeeArrived);
+
+  const [selectedEmpIdx, setSelectedEmpIdx] = useState(0);
+  const selectedEmployee = employees[selectedEmpIdx];
+
+  const [showModal, setShowModal] = useState(false);
+  const [currentTaskType, setCurrentTaskType] = useState('');
+  const [assignee, setAssignee] = useState('');
 
   const stats = useMemo(() => {
-    const completed = mockProgressSteps.filter(s => s.status === 'completed').length;
-    const processing = mockProgressSteps.filter(s => s.status === 'processing').length;
-    const pending = mockProgressSteps.filter(s => s.status === 'pending').length;
-    const total = mockProgressSteps.length;
-    const percent = Math.round((completed / total) * 100);
+    const completed = progressSteps.filter(s => s.status === 'completed').length;
+    const processing = progressSteps.filter(s => s.status === 'processing').length;
+    const pending = progressSteps.filter(s => s.status === 'pending').length;
+    const total = progressSteps.length;
+    const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
     return { completed, processing, pending, total, percent };
-  }, []);
+  }, [progressSteps]);
 
-  const handleTaskAssign = (taskType: string) => {
-    console.log('[Progress] Assign task:', taskType);
+  const pendingTasks = hrTasks.filter(t => t.status !== 'completed');
+  const completedTasks = hrTasks.filter(t => t.status === 'completed');
+
+  const handleSelectEmployee = () => {
     Taro.showActionSheet({
-      itemList: ['工位分配', '账号开通', '设备准备', '体检安排', '培训安排'],
-      success: () => {
-        Taro.showToast({ title: '已安排任务', icon: 'success' });
-      }
+      itemList: employees.map(e => e.name),
+      success: (res) => setSelectedEmpIdx(res.tapIndex)
     });
   };
 
-  const handleSendReminder = (taskId: string) => {
-    console.log('[Progress] Send reminder for task:', taskId);
-    Taro.showToast({ title: '提醒已发送', icon: 'success' });
+  const openScheduleModal = (taskType: string) => {
+    const cfg = taskTypes.find(t => t.type === taskType);
+    setCurrentTaskType(taskType);
+    setAssignee(cfg?.defaultAssignee || '');
+    setShowModal(true);
   };
 
-  const handleMarkDone = (taskId: string) => {
-    console.log('[Progress] Mark task done:', taskId);
-    setHrTasks(prev => prev.map(t =>
-      t.id === taskId ? { ...t, status: 'completed' as const } : t
-    ));
-    Taro.showToast({ title: '已标记完成', icon: 'success' });
+  const handleConfirmSchedule = () => {
+    if (!assignee.trim()) {
+      Taro.showToast({ title: '请填写负责人', icon: 'none' });
+      return;
+    }
+    scheduleTask(currentTaskType, assignee.trim());
+    Taro.showToast({ title: `${currentTaskType}已安排`, icon: 'success' });
+    setShowModal(false);
+    setAssignee('');
   };
 
   const handleMarkArrival = () => {
-    console.log('[Progress] Mark employee arrived');
     Taro.showModal({
       title: '确认到岗',
-      content: '确认该员工已正式到岗吗？',
+      content: `确认员工「${selectedEmployee?.name || ''}」已正式到岗？\n将自动标记所有任务完成并更新进度。`,
       success: (res) => {
         if (res.confirm) {
+          markEmployeeArrived(currentEmployeeId);
           Taro.showToast({ title: '入职流程已完成', icon: 'success' });
         }
       }
     });
   };
 
-  const handleSelectEmployee = () => {
-    const names = mockEmployees.map(e => e.name);
-    Taro.showActionSheet({
-      itemList: names,
-      success: (res) => {
-        setSelectedEmployee(mockEmployees[res.tapIndex]);
-      }
-    });
-  };
-
   if (role === 'hr') {
-    const pendingTasks = hrTasks.filter(t => t.status !== 'completed');
-    const completedTasks = hrTasks.filter(t => t.status === 'completed');
-
     return (
       <View className={styles.page}>
         <View className={styles.header}>
@@ -85,12 +97,12 @@ const ProgressPage: React.FC = () => {
             <RoleSwitcher />
           </View>
         </View>
-        <View className={styles.content}>
+        <ScrollView className={styles.content} scrollY>
           <View className={styles.progressSection}>
             <ProgressCard
               title="整体任务进度"
-              subtitle="今日待办跟进"
-              percent={Math.round((completedTasks.length / hrTasks.length) * 100)}
+              subtitle={`当前员工：${selectedEmployee?.name || ''}`}
+              percent={hrTasks.length > 0 ? Math.round((completedTasks.length / hrTasks.length) * 100) : 0}
               completed={completedTasks.length}
               total={hrTasks.length}
               pending={pendingTasks.length}
@@ -98,7 +110,7 @@ const ProgressPage: React.FC = () => {
           </View>
 
           <View className={styles.hrSelect} onClick={handleSelectEmployee}>
-            <Text className={styles.hrSelectText}>查看员工：{selectedEmployee.name}</Text>
+            <Text className={styles.hrSelectText}>查看员工：{selectedEmployee?.name}</Text>
             <Text className={styles.hrSelectArrow}>▼</Text>
           </View>
 
@@ -107,47 +119,69 @@ const ProgressPage: React.FC = () => {
               <Text className={styles.sectionIcon}>📋</Text>
               入职任务安排
             </View>
-            <View className={styles.taskCard}>
-              <View className={styles.taskHeader}>
-                <Text className={styles.taskTitle}>工位、账号、设备</Text>
-                <StatusBadge status="pending" />
-              </View>
-              <Text className={styles.taskDesc}>联系行政部门安排工位、开通OA和邮箱账号、准备办公设备</Text>
-              <View className={styles.taskActions}>
-                <Button className={classnames(styles.btn, styles.btnOutline)} onClick={() => handleTaskAssign('工位')}>
-                  分配工位
-                </Button>
-                <Button className={classnames(styles.btn, styles.btnPrimary)} onClick={() => handleTaskAssign('账号')}>
-                  开通账号
-                </Button>
-              </View>
-            </View>
-            <View style={{ height: 16 }} />
-            <View className={styles.taskCard}>
-              <View className={styles.taskHeader}>
-                <Text className={styles.taskTitle}>体检安排</Text>
-                <StatusBadge status="pending" />
-              </View>
-              <Text className={styles.taskDesc}>为新员工预约入职体检</Text>
-              <View className={styles.taskActions}>
-                <Button className={classnames(styles.btn, styles.btnPrimary)} onClick={() => handleTaskAssign('体检')}>
-                  预约体检
-                </Button>
-              </View>
-            </View>
-            <View style={{ height: 16 }} />
-            <View className={styles.taskCard}>
-              <View className={styles.taskHeader}>
-                <Text className={styles.taskTitle}>培训安排</Text>
-                <StatusBadge status="pending" />
-              </View>
-              <Text className={styles.taskDesc}>安排新员工入职培训</Text>
-              <View className={styles.taskActions}>
-                <Button className={classnames(styles.btn, styles.btnPrimary)} onClick={() => handleTaskAssign('培训')}>
-                  安排培训
-                </Button>
-              </View>
-            </View>
+            {taskTypes.map(t => {
+              const scheduled = pendingTasks.find(pt => pt.taskType === `${t.type}安排`);
+              return (
+                <View key={t.type} className={styles.taskCard}>
+                  <View className={styles.taskHeader}>
+                    <Text className={styles.taskTitle}>{t.type}安排</Text>
+                    {scheduled ? (
+                      <StatusBadge status={scheduled.status} customText="已安排" />
+                    ) : (
+                      <StatusBadge status="pending" customText="待安排" />
+                    )}
+                  </View>
+                  <Text className={styles.taskDesc}>{t.desc}</Text>
+                  {scheduled && (
+                    <View className={styles.hrTaskDetail}>
+                      <View className={styles.detailItem}>
+                        <Text className={styles.detailLabel}>负责人：</Text>
+                        <Text className={styles.taskAssignee}>{scheduled.assignee}</Text>
+                      </View>
+                      <View className={styles.detailItem}>
+                        <Text className={styles.detailLabel}>安排时间：</Text>
+                        <Text className={styles.detailValue}>{scheduled.scheduledAt}</Text>
+                      </View>
+                      <View className={styles.detailItem}>
+                        <Text className={styles.detailLabel}>截止时间：</Text>
+                        <Text className={styles.detailValue}>{scheduled.deadline}</Text>
+                      </View>
+                    </View>
+                  )}
+                  <View className={styles.taskActions}>
+                    {!scheduled && (
+                      <Button
+                        className={classnames(styles.btn, styles.btnPrimary)}
+                        onClick={() => openScheduleModal(t.type)}
+                      >
+                        安排{t.type}
+                      </Button>
+                    )}
+                    {scheduled && scheduled.status === 'processing' && (
+                      <Button
+                        className={classnames(styles.btn, styles.btnOutline)}
+                        onClick={() => sendReminder(scheduled.id)}
+                      >
+                        发送提醒
+                      </Button>
+                    )}
+                    {scheduled && scheduled.status === 'processing' && (
+                      <Button
+                        className={classnames(styles.btn, styles.btnPrimary)}
+                        onClick={() => markHrTaskDone(scheduled.id)}
+                      >
+                        标记完成
+                      </Button>
+                    )}
+                    {scheduled && scheduled.status === 'completed' && (
+                      <Text style={{ color: '#00B42A', fontSize: 24, fontWeight: 600 }}>
+                        ✅ 已完成（{scheduled.completedAt}）
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
           </View>
 
           <View className={styles.taskSection}>
@@ -155,40 +189,60 @@ const ProgressPage: React.FC = () => {
               <Text className={styles.sectionIcon}>⏰</Text>
               待办任务（{pendingTasks.length}）
             </View>
-            {pendingTasks.map(task => (
-              <View key={task.id} className={styles.hrTaskItem}>
-                <View className={styles.hrTaskRow}>
-                  <Text className={styles.hrTaskTitle}>{task.title}</Text>
-                  <StatusBadge status={task.status} />
-                </View>
-                <View className={styles.hrTaskSub}>
-                  {task.employeeName} · {task.position}
-                </View>
-                <View className={styles.hrTaskMeta}>
-                  <View>
-                    截止：{task.deadline}
-                    {task.deadline && new Date(task.deadline).getTime() - Date.now() < 86400000 * 2 && (
-                      <Text className={styles.reminderBadge}>即将到期</Text>
+            {pendingTasks.length === 0 ? (
+              <View style={{ padding: 40, textAlign: 'center', color: '#86909C', fontSize: 24 }}>
+                🎉 暂无待办任务
+              </View>
+            ) : (
+              pendingTasks.map(task => (
+                <View key={task.id} className={styles.hrTaskItem}>
+                  <View className={styles.hrTaskRow}>
+                    <Text className={styles.hrTaskTitle}>{task.title}</Text>
+                    <StatusBadge status={task.status} />
+                  </View>
+                  <View className={styles.hrTaskSub}>
+                    {task.employeeName} · {task.position}
+                  </View>
+                  <View className={styles.hrTaskDetail}>
+                    {task.assignee && (
+                      <View className={styles.detailItem}>
+                        <Text className={styles.detailLabel}>负责人：</Text>
+                        <Text className={styles.taskAssignee}>{task.assignee}</Text>
+                      </View>
+                    )}
+                    {task.scheduledAt && (
+                      <View className={styles.detailItem}>
+                        <Text className={styles.detailLabel}>安排时间：</Text>
+                        <Text className={styles.detailValue}>{task.scheduledAt}</Text>
+                      </View>
                     )}
                   </View>
-                  <View style={{ display: 'flex', gap: 16 }}>
-                    <View
-                      className={styles.markDoneBtn}
-                      onClick={() => handleSendReminder(task.id)}
-                      style={{ backgroundColor: '#fff7e8', color: '#ff7d00' }}
-                    >
-                      发送提醒
+                  <View className={styles.hrTaskMeta}>
+                    <View>
+                      截止：{task.deadline}
+                      {task.deadline && new Date(task.deadline).getTime() - Date.now() < 86400000 * 2 && (
+                        <Text className={styles.reminderBadge}>即将到期</Text>
+                      )}
                     </View>
-                    <View
-                      className={styles.markDoneBtn}
-                      onClick={() => handleMarkDone(task.id)}
-                    >
-                      标记完成
+                    <View style={{ display: 'flex', gap: 16 }}>
+                      <View
+                        className={styles.markDoneBtn}
+                        onClick={() => sendReminder(task.id)}
+                        style={{ backgroundColor: '#fff7e8', color: '#ff7d00' }}
+                      >
+                        发送提醒
+                      </View>
+                      <View
+                        className={styles.markDoneBtn}
+                        onClick={() => markHrTaskDone(task.id)}
+                      >
+                        标记完成
+                      </View>
                     </View>
                   </View>
                 </View>
-              </View>
-            ))}
+              ))
+            )}
           </View>
 
           <View className={styles.taskSection}>
@@ -196,11 +250,55 @@ const ProgressPage: React.FC = () => {
               <Text className={styles.sectionIcon}>✅</Text>
               员工到岗确认
             </View>
-            <Button className={classnames(styles.btn, styles.btnPrimary)} onClick={handleMarkArrival}>
-              标记员工已到岗
-            </Button>
+            {selectedEmployee?.arrivalStatus === 'completed' ? (
+              <View style={{ padding: 30, backgroundColor: '#f2fff7', borderRadius: 16, textAlign: 'center' }}>
+                <Text style={{ color: '#00B42A', fontSize: 28, fontWeight: 600 }}>
+                  ✅ 员工已于 {selectedEmployee?.arrivedAt} 正式到岗
+                </Text>
+                <Text style={{ color: '#86909C', fontSize: 24, marginTop: 10 }}>
+                  入职流程已全部完成
+                </Text>
+              </View>
+            ) : (
+              <Button className={classnames(styles.btn, styles.btnPrimary)} onClick={handleMarkArrival}>
+                标记员工已到岗
+              </Button>
+            )}
           </View>
-        </View>
+        </ScrollView>
+
+        {showModal && (
+          <View className={styles.modalMask} onClick={() => setShowModal(false)}>
+            <View className={styles.modal} onClick={(e: any) => e.stopPropagation && e.stopPropagation()}>
+              <View className={styles.modalTitle}>安排{currentTaskType}任务</View>
+              <View className={styles.formItem}>
+                <Text className={styles.formLabel}>任务类型</Text>
+                <View className={styles.pickerField}>
+                  <Text>{currentTaskType}安排</Text>
+                </View>
+              </View>
+              <View className={styles.formItem}>
+                <Text className={styles.formLabel}>
+                  <Text style={{ color: '#f53f3f', marginRight: 4 }}>*</Text>负责人
+                </Text>
+                <Input
+                  className={styles.formInput}
+                  value={assignee}
+                  onInput={(e) => setAssignee(e.detail.value)}
+                  placeholder="请输入负责人姓名"
+                />
+              </View>
+              <View className={styles.modalActions}>
+                <Button className={classnames(styles.btn, styles.btnSecondary)} onClick={() => setShowModal(false)}>
+                  取消
+                </Button>
+                <Button className={classnames(styles.btn, styles.btnPrimary)} onClick={handleConfirmSchedule}>
+                  确认安排
+                </Button>
+              </View>
+            </View>
+          </View>
+        )}
       </View>
     );
   }
@@ -248,11 +346,11 @@ const ProgressPage: React.FC = () => {
             <Text className={styles.sectionIcon}>🕐</Text>
             入职流程时间线
           </View>
-          {mockProgressSteps.map((step, index) => (
+          {progressSteps.map((step, index) => (
             <TimelineItem
               key={step.id}
               step={step}
-              isLast={index === mockProgressSteps.length - 1}
+              isLast={index === progressSteps.length - 1}
             />
           ))}
         </View>
@@ -262,9 +360,9 @@ const ProgressPage: React.FC = () => {
             <Text className={styles.sectionIcon}>📌</Text>
             当前进行中的任务
           </View>
-          {mockProgressSteps
+          {progressSteps
             .filter(s => s.status === 'processing' || s.status === 'pending')
-            .slice(0, 3)
+            .slice(0, 5)
             .map(step => (
               <View key={step.id} className={styles.taskCard}>
                 <View className={styles.taskHeader}>
@@ -276,6 +374,14 @@ const ProgressPage: React.FC = () => {
                   <Text>负责人：{step.assignee || '-'}</Text>
                   <Text>预计：{step.expectedDate}</Text>
                 </View>
+                {step.scheduledAt && (
+                  <View className={styles.hrTaskDetail} style={{ marginTop: 10 }}>
+                    <View className={styles.detailItem}>
+                      <Text className={styles.detailLabel}>安排时间：</Text>
+                      <Text className={styles.detailValue}>{step.scheduledAt}</Text>
+                    </View>
+                  </View>
+                )}
               </View>
             ))}
         </View>

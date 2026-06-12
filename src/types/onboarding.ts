@@ -4,6 +4,12 @@ export type TaskStatus = 'pending' | 'processing' | 'completed' | 'rejected';
 
 export type TaskCategory = 'document' | 'process' | 'system' | 'training';
 
+export interface Position {
+  id: string;
+  name: string;
+  department: string;
+}
+
 export interface ChecklistItem {
   id: string;
   title: string;
@@ -14,12 +20,26 @@ export interface ChecklistItem {
   completedAt?: string;
   rejectReason?: string;
   assignee?: string;
+  positionId?: string;
 }
 
 export interface ChecklistGroup {
   category: TaskCategory;
   categoryName: string;
   items: ChecklistItem[];
+}
+
+export interface ChecklistTemplateItem {
+  id: string;
+  title: string;
+  description: string;
+  category: TaskCategory;
+}
+
+export interface PositionChecklistTemplate {
+  positionId: string;
+  positionName: string;
+  items: ChecklistTemplateItem[];
 }
 
 export interface EmergencyContact {
@@ -39,6 +59,10 @@ export interface PersonalInfo {
   arrivalDate: string;
   bankCard: string;
   address: string;
+  auditStatus: TaskStatus;
+  auditRejectReason?: string;
+  submittedAt?: string;
+  auditedAt?: string;
 }
 
 export interface Contract {
@@ -61,6 +85,7 @@ export interface ProgressStep {
   actualDate?: string;
   assignee?: string;
   taskType?: string;
+  scheduledAt?: string;
 }
 
 export interface Message {
@@ -92,12 +117,15 @@ export interface HrTask {
   status: TaskStatus;
   deadline: string;
   assignee?: string;
+  scheduledAt?: string;
+  completedAt?: string;
 }
 
 export interface EmployeeProfile {
   id: string;
   name: string;
   position: string;
+  positionId: string;
   department: string;
   avatar: string;
   phone: string;
@@ -105,4 +133,6 @@ export interface EmployeeProfile {
   overallProgress: number;
   infoStatus: TaskStatus;
   contractStatus: TaskStatus;
+  arrivalStatus: TaskStatus;
+  arrivedAt?: string;
 }

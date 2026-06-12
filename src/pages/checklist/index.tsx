@@ -7,14 +7,20 @@ import RoleSwitcher from '@/components/RoleSwitcher';
 import ProgressCard from '@/components/ProgressCard';
 import ChecklistItemComponent from '@/components/ChecklistItem';
 import StatusBadge from '@/components/StatusBadge';
-import { useUserRole } from '@/store/UserContext';
-import { mockChecklistItems, mockChecklistGroups, mockEmployees } from '@/data/mockData';
+import { useOnboardingStore } from '@/store/onboardingStore';
 import type { TaskStatus } from '@/types/onboarding';
 
 type FilterType = 'all' | TaskStatus;
 
 const ChecklistPage: React.FC = () => {
-  const { role } = useUserRole();
+  const role = useOnboardingStore((s) => s.role);
+  const employees = useOnboardingStore((s) => s.employees);
+  const currentPositionId = useOnboardingStore((s) => s.currentPositionId);
+  const positions = useOnboardingStore((s) => s.positions);
+  const getChecklistGroups = useOnboardingStore((s) => s.getChecklistGroups);
+  const getChecklistStats = useOnboardingStore((s) => s.getChecklistStats);
+  const applyChecklistToEmployee = useOnboardingStore((s) => s.applyChecklistToEmployee);
+
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
 
   const filterTabs: { key: FilterType; label: string }[] = [
@@ -25,48 +31,56 @@ const ChecklistPage: React.FC = () => {
     { key: 'rejected', label: '已退回' }
   ];
 
-  const stats = useMemo(() => {
-    const total = mockChecklistItems.length;
-    const completed = mockChecklistItems.filter(i => i.status === 'completed').length;
-    const pending = mockChecklistItems.filter(i => i.status === 'pending').length;
-    const processing = mockChecklistItems.filter(i => i.status === 'processing').length;
-    const rejected = mockChecklistItems.filter(i => i.status === 'rejected').length;
-    const percent = Math.round((completed / total) * 100);
-    return { total, completed, pending, processing, rejected, percent };
-  }, []);
+  const stats = useMemo(() => getChecklistStats(), [getChecklistStats]);
+  const groups = useMemo(() => getChecklistGroups(), [getChecklistGroups]);
 
   const filteredGroups = useMemo(() => {
-    if (activeFilter === 'all') return mockChecklistGroups;
-    return mockChecklistGroups
+    if (activeFilter === 'all') return groups;
+    return groups
       .map(g => ({
         ...g,
         items: g.items.filter(i => i.status === activeFilter)
       }))
       .filter(g => g.items.length > 0);
-  }, [activeFilter]);
+  }, [activeFilter, groups]);
 
   const handleItemClick = (itemId: string) => {
-    console.log('[Checklist] Click item:', itemId);
     Taro.showToast({ title: '查看详情', icon: 'none' });
   };
 
   const handleGuideClick = (guideType: string) => {
-    console.log('[Checklist] Click guide:', guideType);
     Taro.showToast({ title: '查看公司指引', icon: 'none' });
   };
 
   const handleEmployeeClick = (empId: string) => {
-    console.log('[Checklist] Click employee:', empId);
     Taro.navigateTo({ url: '/pages/employee/index?id=' + empId });
+  };
+
+  const handleGoConfig = () => {
+    Taro.navigateTo({ url: '/pages/config/index' });
+  };
+
+  const handleApplyTemplate = () => {
+    const pos = positions.find(p => p.id === currentPositionId);
+    Taro.showModal({
+      title: '确认应用模板',
+      content: `将「${pos?.name || '当前岗位'}」的入职清单模板应用给当前员工？`,
+      success: (res) => {
+        if (res.confirm) {
+          applyChecklistToEmployee(currentPositionId, 'emp1');
+          Taro.showToast({ title: '已应用最新清单', icon: 'success' });
+        }
+      }
+    });
   };
 
   const hrStats = useMemo(() => {
     return {
-      total: mockEmployees.length,
-      pending: mockEmployees.filter(e => e.overallProgress < 50).length,
-      completed: mockEmployees.filter(e => e.overallProgress >= 90).length
+      total: employees.length,
+      pending: employees.filter(e => e.overallProgress < 50).length,
+      completed: employees.filter(e => e.overallProgress >= 90 || e.arrivalStatus === 'completed').length
     };
-  }, []);
+  }, [employees]);
 
   if (role === 'hr') {
     return (
@@ -85,7 +99,7 @@ const ChecklistPage: React.FC = () => {
             <ProgressCard
               title="入职办理总览"
               subtitle="当前在办新员工"
-              percent={Math.round((hrStats.completed / hrStats.total) * 100)}
+              percent={hrStats.total > 0 ? Math.round((hrStats.completed / hrStats.total) * 100) : 0}
               completed={hrStats.completed}
               total={hrStats.total}
               pending={hrStats.pending}
@@ -103,12 +117,23 @@ const ChecklistPage: React.FC = () => {
             </View>
             <View className={styles.hrStatCard}>
               <Text className={styles.hrStatNum}>{hrStats.completed}</Text>
-              <Text className={styles.hrStatLabel}>即将完成</Text>
+              <Text className={styles.hrStatLabel}>已完成</Text>
+            </View>
+          </View>
+
+          <View className={styles.quickActionRow}>
+            <View className={styles.quickActionBtn} onClick={handleGoConfig}>
+              <Text className={styles.quickActionIcon}>⚙️</Text>
+              <Text className={styles.quickActionText}>岗位清单配置</Text>
+            </View>
+            <View className={styles.quickActionBtn} onClick={handleApplyTemplate}>
+              <Text className={styles.quickActionIcon}>📋</Text>
+              <Text className={styles.quickActionText}>应用清单模板</Text>
             </View>
           </View>
 
           <View className={styles.sectionTitle}>新员工列表</View>
-          {mockEmployees.map(emp => (
+          {employees.map(emp => (
             <View
               key={emp.id}
               className={styles.employeeCard}
@@ -124,6 +149,11 @@ const ChecklistPage: React.FC = () => {
                   <Text style={{ marginLeft: 8 }}>
                     <StatusBadge status={emp.contractStatus} customText="合同" />
                   </Text>
+                  {emp.arrivalStatus === 'completed' && (
+                    <Text style={{ marginLeft: 8 }}>
+                      <StatusBadge status="completed" customText="已到岗" />
+                    </Text>
+                  )}
                 </View>
                 <View className={styles.empPosition}>{emp.department} · {emp.position}</View>
                 <View className={styles.empProgress}>

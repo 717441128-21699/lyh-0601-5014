@@ -5,27 +5,35 @@ import classnames from 'classnames';
 import styles from './index.module.scss';
 import RoleSwitcher from '@/components/RoleSwitcher';
 import MessageBubble from '@/components/MessageBubble';
-import { useUserRole } from '@/store/UserContext';
-import { mockConversations, mockMessages } from '@/data/mockData';
+import { useOnboardingStore } from '@/store/onboardingStore';
 import type { Conversation, Message } from '@/types/onboarding';
 
 const MessagesPage: React.FC = () => {
-  const { role } = useUserRole();
+  const role = useOnboardingStore((s) => s.role);
+  const conversations = useOnboardingStore((s) => s.conversations);
+  const allMessages = useOnboardingStore((s) => s.messages);
+  const sendMessage = useOnboardingStore((s) => s.sendMessage);
+  const markConversationRead = useOnboardingStore((s) => s.markConversationRead);
+
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [inputText, setInputText] = useState('');
-  const [messages, setMessages] = useState<Message[]>(mockMessages);
   const scrollRef = useRef<any>(null);
 
-  const currentConvMessages = useMemo(() => {
+  const currentConvMessages: Message[] = useMemo(() => {
     if (!activeConv) return [];
-    return messages.filter(m => m.conversationId === activeConv.id);
-  }, [activeConv, messages]);
+    return allMessages.filter(m => m.conversationId === activeConv.id);
+  }, [activeConv, allMessages]);
 
   useEffect(() => {
     if (scrollRef.current && activeConv) {
       setTimeout(() => {
-        // scroll to bottom
-      }, 100);
+        if (scrollRef.current) {
+          scrollRef.current.scrollTo({
+            top: 99999,
+            animated: true
+          });
+        }
+      }, 200);
     }
   }, [currentConvMessages.length, activeConv]);
 
@@ -38,38 +46,18 @@ const MessagesPage: React.FC = () => {
   ];
 
   const handleConvClick = (conv: Conversation) => {
-    console.log('[Messages] Open conversation:', conv.id);
+    markConversationRead(conv.id);
     setActiveConv(conv);
-    setMessages(prev => prev.map(m =>
-      m.conversationId === conv.id ? { ...m, isRead: true } : m
-    ));
   };
 
   const handleBack = () => {
     setActiveConv(null);
+    setInputText('');
   };
 
   const handleSend = () => {
     if (!inputText.trim() || !activeConv) return;
-    console.log('[Messages] Send message:', inputText);
-
-    const newMsg: Message = {
-      id: 'm' + Date.now(),
-      conversationId: activeConv.id,
-      senderId: role === 'hr' ? 'hr1' : 'emp1',
-      senderName: role === 'hr' ? '我（HR）' : '我',
-      senderRole: role,
-      content: inputText.trim(),
-      createdAt: new Date().toLocaleString('zh-CN', {
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      }).replace(/\//g, '-'),
-      isRead: true
-    };
-
-    setMessages(prev => [...prev, newMsg]);
+    sendMessage(activeConv.id, inputText.trim(), role);
     setInputText('');
     Taro.showToast({ title: '发送成功', icon: 'success' });
   };
@@ -79,8 +67,8 @@ const MessagesPage: React.FC = () => {
   };
 
   const totalUnread = useMemo(() => {
-    return mockConversations.reduce((sum, c) => sum + c.unreadCount, 0);
-  }, []);
+    return conversations.reduce((sum, c) => sum + c.unreadCount, 0);
+  }, [conversations]);
 
   if (activeConv) {
     return (
@@ -96,23 +84,24 @@ const MessagesPage: React.FC = () => {
           </View>
         )}
 
-        <ScrollView className={styles.chatBody} scrollY ref={scrollRef}>
+        <ScrollView className={styles.chatBody} scrollY ref={scrollRef} scrollIntoView={'msg_' + (currentConvMessages.length - 1)}>
           {currentConvMessages.map((msg, idx) => {
             const prevMsg = currentConvMessages[idx - 1];
             const showName = !prevMsg || prevMsg.senderId !== msg.senderId;
             return (
-              <MessageBubble
-                key={msg.id}
-                message={msg}
-                isSelf={msg.senderRole === role}
-                showName={showName && msg.senderRole !== role}
-              />
+              <View key={msg.id} id={'msg_' + idx}>
+                <MessageBubble
+                  message={msg}
+                  isSelf={msg.senderRole === role || msg.senderName === '我' || msg.senderName === '我（HR）'}
+                  showName={showName && msg.senderRole !== role}
+                />
+              </View>
             );
           })}
           {currentConvMessages.length === 0 && (
             <View className={styles.emptyState}>
               <Text className={styles.emptyIcon}>💬</Text>
-              <Text className={styles.emptyText}>暂无消息记录</Text>
+              <Text className={styles.emptyText}>暂无消息记录，开始聊天吧</Text>
             </View>
           )}
         </ScrollView>
@@ -141,6 +130,7 @@ const MessagesPage: React.FC = () => {
           <Button
             className={classnames(styles.sendBtn, !inputText.trim() && styles.disabled)}
             onClick={handleSend}
+            disabled={!inputText.trim()}
           >
             发送
           </Button>
@@ -165,7 +155,7 @@ const MessagesPage: React.FC = () => {
       </View>
 
       <ScrollView className={styles.listView} scrollY>
-        {mockConversations.map(conv => (
+        {conversations.map(conv => (
           <View
             key={conv.id}
             className={styles.convItem}
@@ -191,7 +181,7 @@ const MessagesPage: React.FC = () => {
           </View>
         ))}
 
-        {mockConversations.length === 0 && (
+        {conversations.length === 0 && (
           <View className={styles.emptyState}>
             <Text className={styles.emptyIcon}>📭</Text>
             <Text className={styles.emptyText}>暂无消息</Text>

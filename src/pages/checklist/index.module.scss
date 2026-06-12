@@ -242,3 +242,37 @@
   color: $color-text-primary;
   padding: $spacing-md 0;
 }
+
+.quickActionRow {
+  display: flex;
+  gap: $spacing-md;
+  margin-bottom: $spacing-md;
+}
+
+.quickActionBtn {
+  flex: 1;
+  background-color: $color-bg-card;
+  border-radius: $radius-md;
+  padding: $spacing-md;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: $shadow-card;
+  transition: all $transition-base;
+
+  &:active {
+    opacity: 0.9;
+    transform: scale(0.98);
+  }
+}
+
+.quickActionIcon {
+  font-size: 48rpx;
+  margin-bottom: $spacing-xs;
+}
+
+.quickActionText {
+  font-size: $font-size-xs;
+  color: $color-text-primary;
+  font-weight: $font-weight-medium;
+}

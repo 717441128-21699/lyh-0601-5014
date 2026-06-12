@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode } from 'react';
+import { useOnboardingStore } from './onboardingStore';
 import type { UserRole } from '@/types/onboarding';
 
 interface UserContextType {
@@ -10,11 +11,9 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [role, setRole] = useState<UserRole>('employee');
-
-  const toggleRole = () => {
-    setRole(prev => prev === 'employee' ? 'hr' : 'employee');
-  };
+  const role = useOnboardingStore((s) => s.role);
+  const setRole = useOnboardingStore((s) => s.setRole);
+  const toggleRole = useOnboardingStore((s) => s.toggleRole);
 
   return (
     <UserContext.Provider value={{ role, setRole, toggleRole }}>
